@@ -229,15 +229,30 @@ void OnTick()
     UpdateLockStatus(positions);
 
 // ================================================================= //
+//        BỘ KIỂM TRA TỔNG LỆNH ĐỂ RESET QUỸ ALL TỰ ĐỘNG             //
+// ================================================================= //
+    if(total_buy_pos == 0 && total_sell_pos == 0)
+    {
+        if(g_fund_all != 0.0)
+        {
+            g_fund_all = 0.0;
+            SaveBudget();
+            Log("INFO", "Reset QUY ALL ve 0.0 do khong con lenh nao mo.");
+        }
+    }
+
+// ================================================================= //
 //        B? KI?M TRA TP THEO USD TO�N EA (v1.5)                     //
 // ================================================================= //
     if(inp_take_profit_usd > 0)
     {
-        double total_ea_profit = total_buy_profit + total_sell_profit;
+        double total_ea_profit = g_fund_all + total_buy_profit + total_sell_profit;
         if(total_ea_profit >= inp_take_profit_usd)
         {
             CloseAllPositionsByEA(positions);
-            return; // D?ng ngay l?p t?c
+            g_fund_all = 0.0;
+            SaveBudget();
+            return; // Dừng ngay lập tức
         }
     }
 // ================================================================= //
@@ -459,8 +474,8 @@ if(IsNewBar())
     UpdateLockStatus(positions);
 
     CheckAndOpenInitialTrades(total_buy_pos, total_sell_pos);
-    ManageBuyPositions(positions, total_buy_pos, pure_dca_am_buy_pos);
-    ManageSellPositions(positions, total_sell_pos, pure_dca_am_sell_pos);
+    ManageBuyPositions(positions, total_buy_pos, pure_dca_am_buy_pos, total_buy_profit, total_sell_profit);
+    ManageSellPositions(positions, total_sell_pos, pure_dca_am_sell_pos, total_buy_profit, total_sell_profit);
     
     ManageTrailingStops(positions, total_buy_pos, total_sell_pos);
     

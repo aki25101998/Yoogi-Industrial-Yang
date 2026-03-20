@@ -168,6 +168,7 @@ double   g_trimmed_week = 0.0;
 //--- BIẾN TOÀN CỤC (Quỹ Tỉa Lệnh) ---
 double   g_fund_trim_buy = 0.0;   // Quỹ tỉa lệnh cho phe Buy
 double   g_fund_trim_sell = 0.0;  // Quỹ tỉa lệnh cho phe Sell
+double   g_fund_all = 0.0;        // Quỹ All (tổng hợp khi TP USD > 0)
 
 //--- BIẾN THEO DÕI SỐ LỆNH (Để detect khi vào chế độ trimming) ---
 int      g_prev_buy_count = 0;    // Số lệnh BUY lần tick trước

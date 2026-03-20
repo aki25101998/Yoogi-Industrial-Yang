@@ -108,6 +108,8 @@ input double inp_dist_level_10= 40.0;   // Khoảng cách DCA DƯƠNG áp dụng
 
 //--- Cài đặt DCA ÂM (Nghịch xu hướng)
 input group "---  DCA Âm  ---"
+input bool   inp_dca_am_less_drawdown_only = false; // DCA Âm cho phe lỗ ít hơn
+input bool   inp_trailing_dca_am_as_dca_duong = false; // DCA Âm sử dụng Lot/Distance/Trailing giống DCA Dương
 input group "Nhóm 1"; 
 input int    inp_level_nhom_1 = 1;      // Level bắt đầu nhóm 1
 input double inp_multi_nhom_1 = 1.2;    // Hệ số xlot nhóm 1
@@ -217,6 +219,7 @@ input ENUM_TRIM_STYLE inp_trim_style   = TRIM_STYLE_FUND; // Kiểu cơ chế t�
 input ENUM_TRIM_MODE inp_trim_mode     = TRIM_MODE_SAME_SIDE; // Chế độ tỉa lệnh (quỹ)
 input ENUM_TRIM_TRIGGER inp_trim_trigger_mode = TRIM_BY_COUNT; // Điều kiện kích hoạt tỉa
 input int    inp_trim_trigger_level    = 10;        // Số lệnh để kích hoạt tỉa (BY_COUNT)
+input bool   inp_trim_count_both_sides = false;     // Kích hoạt tỉa dựa trên TỔNG lệnh Buy+Sell
 input double inp_trim_pip_distance     = 50.0;      // Khoảng cách pip kích hoạt tỉa (BY_DISTANCE)
 input double inp_trim_close_percentage = 30.0;      // % khối lượng muốn tỉa
 input double inp_trim_target_profit    = 5.0;       // Lợi nhuận mục tiêu sau khi tỉa

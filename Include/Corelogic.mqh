@@ -164,7 +164,7 @@ void ManageTrailingStops(const PositionInfo &positions[], int total_buy_position
 
       for(int i = 0; i < ArraySize(positions); i++)
       {
-         if(StringFind(positions[i].comment, "DCA AM") != -1) continue;
+         if(!inp_trailing_dca_am_as_dca_duong && StringFind(positions[i].comment, "DCA AM") != -1) continue;
          
          double open_price = positions[i].open_price;
          
@@ -214,7 +214,7 @@ void ManageTrailingStops(const PositionInfo &positions[], int total_buy_position
    }
 }
 
-void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int pure_dca_am_buy_pos)
+void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int pure_dca_am_buy_pos, double total_buy_profit, double total_sell_profit)
 {
    if(g_is_buy_locked) return;
 
@@ -230,7 +230,8 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
    double ca=SymbolInfoDouble(_Symbol,SYMBOL_ASK);
 
    bool ad=ca>=(hp+(double)PipToPoints(g_current_dca_duong_distance)*_Point);
-   bool aa=ca<=(lp-(double)PipToPoints(GetDistancePips_ForDCA_Am(pure_dca_am_buy_pos+1))*_Point);
+   double dca_am_distance_pips = inp_trailing_dca_am_as_dca_duong ? inp_dca_duong_distance_pips : GetDistancePips_ForDCA_Am(pure_dca_am_buy_pos+1);
+   bool aa=ca<=(lp-(double)PipToPoints(dca_am_distance_pips)*_Point);
 
    if((ad||aa) && total_buy_pos==1){
        if(inp_initial_tp_pips>0){
@@ -250,6 +251,17 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
 
    if(inp_enable_dca_am && aa)
    {
+      // --- KIỂM TRA ĐIỀU KIỆN DCA ÂM KHI LỖ ÍT HƠN ---
+      if(inp_dca_am_less_drawdown_only)
+      {
+         // Kiểm tra nếu Buy lỗ NHIỀU HƠN Sell thì KHÓA
+         if(total_buy_profit < total_sell_profit)
+         {
+            Log("DEBUG", StringFormat("DCA AM BUY bi khoa do phe Buy (%.2f) lo nhieu hon phe Sell (%.2f).", total_buy_profit, total_sell_profit));
+            return;
+         }
+      }
+
       // Logic bổ sung DCA Am
       int next_level = pure_dca_am_buy_pos + 1;
       double next_lot = GetLotSize_ForDCA_Am(next_level, g_current_base_lot_buy);
@@ -270,7 +282,7 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
    }
 }
 
-void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, int pure_dca_am_sell_pos)
+void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, int pure_dca_am_sell_pos, double total_buy_profit, double total_sell_profit)
 {
    if(g_is_sell_locked) return;
    
@@ -286,7 +298,8 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
    double cb=SymbolInfoDouble(_Symbol,SYMBOL_BID);
 
    bool ad=cb<=(lp-(double)PipToPoints(g_current_dca_duong_distance)*_Point);
-   bool aa=cb>=(hp+(double)PipToPoints(GetDistancePips_ForDCA_Am(pure_dca_am_sell_pos+1))*_Point);
+   double dca_am_distance_pips = inp_trailing_dca_am_as_dca_duong ? inp_dca_duong_distance_pips : GetDistancePips_ForDCA_Am(pure_dca_am_sell_pos+1);
+   bool aa=cb>=(hp+(double)PipToPoints(dca_am_distance_pips)*_Point);
    
    if((ad||aa) && total_sell_pos==1){
        if(inp_initial_tp_pips>0){
@@ -306,6 +319,17 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
    
    if(inp_enable_dca_am && aa)
    {
+      // --- KIỂM TRA ĐIỀU KIỆN DCA ÂM KHI LỖ ÍT HƠN ---
+      if(inp_dca_am_less_drawdown_only)
+      {
+         // Kiểm tra nếu Sell lỗ NHIỀU HƠN Buy thì KHÓA
+         if(total_sell_profit < total_buy_profit)
+         {
+            Log("DEBUG", StringFormat("DCA AM SELL bi khoa do phe Sell (%.2f) lo nhieu hon phe Buy (%.2f).", total_sell_profit, total_buy_profit));
+            return;
+         }
+      }
+
       int next_level = pure_dca_am_sell_pos + 1;
       double next_lot = GetLotSize_ForDCA_Am(next_level, g_current_base_lot_sell);
 
@@ -396,6 +420,7 @@ int GetGroupForLevel(int level)
 void ExecuteDcaAmGroupTrailing(const PositionInfo &positions[], ENUM_POSITION_TYPE type)
 {
    if(!inp_enable_group_trailing || inp_group_trailing_start_pips <= 0 || inp_group_trailing_dist_pips <= 0) return;
+   if(inp_trailing_dca_am_as_dca_duong) return; // Khoa Trailing Group khi dung Trailing don (lenh giong DCA Duong)
 
    // Bước 1: Thu thập tất cả lệnh DCA AM + Initial và sắp xếp theo thời gian
    ulong tickets[];
@@ -516,6 +541,15 @@ void ExecuteDcaAmGroupTrailing(const PositionInfo &positions[], ENUM_POSITION_TY
 void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_TYPE_BUY, string deal_comment = "")
 {
    if(deal_profit == 0) return;
+   
+   // --- LOGIC QUỸ ALL MỚI ---
+   if(inp_take_profit_usd > 0)
+   {
+      g_fund_all += deal_profit;
+      Log("INFO", StringFormat(">>> QUY ALL %+.2f. Tong: %.2f <<<", deal_profit, g_fund_all));
+      SaveBudget();
+   }
+
    if(deal_profit > 0)
    {
       double profit_for_safe_day = deal_profit * (inp_emergency_profit_retention_day / 100.0);
@@ -538,18 +572,21 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
          
          if(is_dca_am || is_initial || is_dca_duong)
          {
-            // Xác định phe dựa trên deal_type
-            if(deal_type == DEAL_TYPE_SELL) // SELL close = BUY position was closed
+            if(inp_take_profit_usd == 0) // Chỉ chạy quỹ riêng khi TP USD đang tắt
             {
-               g_fund_trim_buy += deal_profit;
-               Log("INFO", StringFormat(">>> QUY BUY +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_buy));
-               SaveBudget();
-            }
-            else if(deal_type == DEAL_TYPE_BUY) // BUY close = SELL position was closed
-            {
-               g_fund_trim_sell += deal_profit;
-               Log("INFO", StringFormat(">>> QUY SELL +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_sell));
-               SaveBudget();
+               // Xác định phe dựa trên deal_type
+               if(deal_type == DEAL_TYPE_SELL) // SELL close = BUY position was closed
+               {
+                  g_fund_trim_buy += deal_profit;
+                  Log("INFO", StringFormat(">>> QUY BUY +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_buy));
+                  SaveBudget();
+               }
+               else if(deal_type == DEAL_TYPE_BUY) // BUY close = SELL position was closed
+               {
+                  g_fund_trim_sell += deal_profit;
+                  Log("INFO", StringFormat(">>> QUY SELL +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_sell));
+                  SaveBudget();
+               }
             }
          }
       }
@@ -653,6 +690,7 @@ void SaveBudget()
    // Luu quy tia lenh
    if(!GlobalVariableSet(PREFIX_BUDGET + "FundBuy_" + suffix, g_fund_trim_buy)) Log("ERROR", "Khong the luu FundBuy");
    if(!GlobalVariableSet(PREFIX_BUDGET + "FundSell_" + suffix, g_fund_trim_sell)) Log("ERROR", "Khong the luu FundSell");
+   if(!GlobalVariableSet(PREFIX_BUDGET + "FundAll_" + suffix, g_fund_all)) Log("ERROR", "Khong the luu FundAll");
    
    // Luu timestamp de tranh reset oan khi khoi dong lai
    GlobalVariableSet(PREFIX_BUDGET + "LastDay_" + suffix, (double)g_last_known_day);
@@ -688,6 +726,11 @@ void LoadBudget()
           g_fund_trim_sell = GlobalVariableGet(PREFIX_BUDGET + "FundSell_" + suffix);
       else
            g_fund_trim_sell = 0.0;
+           
+      if(GlobalVariableCheck(PREFIX_BUDGET + "FundAll_" + suffix))
+          g_fund_all = GlobalVariableGet(PREFIX_BUDGET + "FundAll_" + suffix);
+      else
+           g_fund_all = 0.0;
        
       // Load thoi gian Last Known Day/Week neu co
       if(GlobalVariableCheck(PREFIX_BUDGET + "LastDay_" + suffix))

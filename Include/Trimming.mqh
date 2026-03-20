@@ -104,7 +104,7 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
       int position_count = 0;
       for(int i=0; i<ArraySize(positions); i++)
       {
-         if(positions[i].type == p_type) position_count++;
+         if(inp_trim_count_both_sides || positions[i].type == p_type) position_count++;
       }
       if(position_count < inp_trim_trigger_level) return false;
    }
@@ -147,10 +147,14 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
    
    // Buoc 4: Kiem tra quy (CROSS_SIDE: dung quy doi dien)
    double current_fund;
-   if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
-   else
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   if(inp_take_profit_usd > 0) {
+      current_fund = g_fund_all;
+   } else {
+      if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
+      else
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   }
    
    if(current_fund >= needed)
    {
@@ -160,17 +164,22 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
       if(trade.PositionClose(patient_ticket))
       {
           AddTacticalClose(patient_ticket);
-         if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+         if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
          }
-         else
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+         string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          }
-         string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-            ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-            ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          Log("INFO", StringFormat(">>> TIA QUY: Dong TOAN PHAN lenh #%I64u (lo %.2f). Da dung quy %s. <<<", 
              patient_ticket, patient_loss_amount, fund_name));
          SaveBudget();
@@ -198,17 +207,22 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
             if(trade.PositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
-               if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
-               }
-               else
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
-               }
-               string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-                  ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-                  ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+               if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
+         }
+               string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+         }
                Log("INFO", StringFormat(">>> TIA QUY: Dong MOT PHAN (%.2f lot) lenh #%I64u. Da dung quy %s. <<<", 
                    volume_to_close, patient_ticket, fund_name));
                SaveBudget();
@@ -578,10 +592,14 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
    
    // Buoc 3: Kiem tra quy (CROSS_SIDE: dung quy doi dien)
    double current_fund;
-   if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
-   else
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   if(inp_take_profit_usd > 0) {
+      current_fund = g_fund_all;
+   } else {
+      if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
+      else
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   }
    
    if(current_fund >= needed)
    {
@@ -591,17 +609,22 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
       if(trade.PositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
-         if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+         if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
          }
-         else
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+         string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          }
-         string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-            ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-            ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          Log("INFO", StringFormat("TIA DCA DUONG QUY: Dong TOAN PHAN lenh #%I64u (lo %.2f). RESET Quy %s ve 0.", 
              patient_ticket, patient_loss_amount, fund_name));
          SaveBudget();
@@ -629,17 +652,22 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
             if(trade.PositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
-               if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
-               }
-               else
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
-               }
-               string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-                  ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-                  ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+               if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
+         }
+               string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+         }
                Log("INFO", StringFormat("TIA DCA DUONG QUY: Dong MOT PHAN (%.2f lot) lenh #%I64u. RESET Quy %s ve 0.", 
                    volume_to_close, patient_ticket, fund_name));
                SaveBudget();
@@ -710,10 +738,14 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
    
    // Buoc 3: Kiem tra quy (CROSS_SIDE: dung quy doi dien)
    double current_fund;
-   if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
-   else
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   if(inp_take_profit_usd > 0) {
+      current_fund = g_fund_all;
+   } else {
+      if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
+      else
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   }
    
    if(current_fund >= needed)
    {
@@ -723,17 +755,22 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
       if(trade.PositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
-         if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+         if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
          }
-         else
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+         string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          }
-         string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-            ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-            ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          Log("INFO", StringFormat("TIA INITIAL QUY: Dong TOAN PHAN lenh #%I64u (lo %.2f). RESET Quy %s ve 0.", 
              patient_ticket, patient_loss_amount, fund_name));
          SaveBudget();
@@ -761,17 +798,22 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
             if(trade.PositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
-               if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
-               }
-               else
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
-               }
-               string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-                  ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-                  ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+               if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
+         }
+               string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+         }
                Log("INFO", StringFormat("TIA INITIAL QUY: Dong MOT PHAN (%.2f lot) lenh #%I64u. RESET Quy %s ve 0.", 
                    volume_to_close, patient_ticket, fund_name));
                SaveBudget();
@@ -842,10 +884,14 @@ bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
    
    // Buoc 3: Kiem tra quy (CROSS_SIDE: dung quy doi dien)
    double current_fund;
-   if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
-   else
-      current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   if(inp_take_profit_usd > 0) {
+      current_fund = g_fund_all;
+   } else {
+      if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
+      else
+         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
+   }
    
    if(current_fund >= needed)
    {
@@ -855,17 +901,22 @@ bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
       if(trade.PositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
-         if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+         if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
          }
-         else
-         {
-            if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+         string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          }
-         string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-            ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-            ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
          Log("INFO", StringFormat("TIA DCA AM QUY: Dong TOAN PHAN lenh #%I64u (lo %.2f). RESET Quy %s ve 0.", 
              patient_ticket, patient_loss_amount, fund_name));
          SaveBudget();
@@ -893,17 +944,22 @@ bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
             if(trade.PositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
-               if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
-               }
-               else
-               {
-                  if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
-               }
-               string fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-                  ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-                  ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+               if(inp_take_profit_usd == 0) {
+            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
+            }
+            else
+            {
+               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
+            }
+         }
+               string fund_name = "ALL";
+         if(inp_take_profit_usd == 0) {
+            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
+               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
+               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
+         }
                Log("INFO", StringFormat("TIA DCA AM QUY: Dong MOT PHAN (%.2f lot) lenh #%I64u. RESET Quy %s ve 0.", 
                    volume_to_close, patient_ticket, fund_name));
                SaveBudget();

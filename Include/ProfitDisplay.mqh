@@ -134,13 +134,28 @@ void UpdateProfitDisplay()
    ObjectSetString(0, PROFIT_PREFIX + "WeekValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_safe_week));
    
    // --- CẬP NHẬT QUỸ TỈA LỆNH ---
-   ObjectSetString(0, PROFIT_PREFIX + "FundBuyValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_fund_trim_buy));
-   ObjectSetString(0, PROFIT_PREFIX + "FundSellValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_fund_trim_sell));
-   
-   color fund_buy_color = (g_fund_trim_buy > 0) ? clrLimeGreen : clrGainsboro;
-   color fund_sell_color = (g_fund_trim_sell > 0) ? clrLimeGreen : clrGainsboro;
-   ObjectSetInteger(0, PROFIT_PREFIX + "FundBuyValue", OBJPROP_COLOR, fund_buy_color);
-   ObjectSetInteger(0, PROFIT_PREFIX + "FundSellValue", OBJPROP_COLOR, fund_sell_color);
+   if(inp_take_profit_usd > 0)
+   {
+      ObjectSetString(0, PROFIT_PREFIX + "FundBuyText", OBJPROP_TEXT, "Quy All:");
+      ObjectSetString(0, PROFIT_PREFIX + "FundBuyValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_fund_all));
+      ObjectSetString(0, PROFIT_PREFIX + "FundSellText", OBJPROP_TEXT, " ");
+      ObjectSetString(0, PROFIT_PREFIX + "FundSellValue", OBJPROP_TEXT, " ");
+      
+      color fund_all_color = (g_fund_all > 0) ? clrLimeGreen : (g_fund_all < 0 ? clrRed : clrGainsboro);
+      ObjectSetInteger(0, PROFIT_PREFIX + "FundBuyValue", OBJPROP_COLOR, fund_all_color);
+   }
+   else
+   {
+      ObjectSetString(0, PROFIT_PREFIX + "FundBuyText", OBJPROP_TEXT, "Quy Buy:");
+      ObjectSetString(0, PROFIT_PREFIX + "FundSellText", OBJPROP_TEXT, "Quy Sell:");
+      ObjectSetString(0, PROFIT_PREFIX + "FundBuyValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_fund_trim_buy));
+      ObjectSetString(0, PROFIT_PREFIX + "FundSellValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_fund_trim_sell));
+      
+      color fund_buy_color = (g_fund_trim_buy > 0) ? clrLimeGreen : clrGainsboro;
+      color fund_sell_color = (g_fund_trim_sell > 0) ? clrLimeGreen : clrGainsboro;
+      ObjectSetInteger(0, PROFIT_PREFIX + "FundBuyValue", OBJPROP_COLOR, fund_buy_color);
+      ObjectSetInteger(0, PROFIT_PREFIX + "FundSellValue", OBJPROP_COLOR, fund_sell_color);
+   }
    ObjectSetString(0, PROFIT_PREFIX + "WeekBudgetValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_budget_week));
    ObjectSetString(0, PROFIT_PREFIX + "WeekTrimmedValue", OBJPROP_TEXT, StringFormat("%.2f USD", g_trimmed_week));
 
