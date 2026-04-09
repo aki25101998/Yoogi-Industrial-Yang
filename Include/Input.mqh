@@ -6,24 +6,27 @@
 
 #include "Globals.mqh"
 
-//--- Cài đặt chung ---
-input group "---  Cài đặt chung  ---"
+//===================================================================
+// = 1. CÀI ĐẶT CHUNG TỔNG QUAN                                     =
+//===================================================================
+input group "--- 1. Cài đặt chung ---"
 input ulong  inp_magic_number       = 12345;  // Magic Number
-input double inp_lot_dca_duong      = 0.01;   // Lot DCA Duong (Initial + DCA Duong)
-input double inp_lot_dca_am         = 0.01;   // Lot DCA Am
 input double inp_initial_tp_pips    = 20.0;   // Take Profit cho lệnh đầu (0 = tắt)
 input double inp_take_profit_usd    = 0.0;    // TP USD (0 = tắt)
 input bool inp_withdrawal_mode = false;   // Rút tiền
 
-//--- Chế Độ Pending Orders (Chống Trượt Giá) ---
-input group "--- Chế Độ Pending Orders ---"
-input bool   inp_enable_pending_mode      = true;    // Bật Chế Độ Pending Orders (Chống Trượt Giá)
-input int    inp_pending_order_count      = 50;      // Số lượng lệnh Stop/Limit đặt trước mỗi biên
-input int    inp_pending_refill_threshold = 10;      // Số lệnh tối thiểu trước khi tự động nhồi thêm
-input bool   inp_pending_auto_refill      = true;    // Tự động đặt thêm khi hết
+//===================================================================
+// = 2. KHỐI LƯỢNG & KHOẢNG CÁCH CƠ BẢN                             =
+//===================================================================
+input group "--- 2. Khối Lượng Ban Đầu ---"
+input double inp_lot_dca_duong      = 0.01;   // Lot DCA Duong (Initial + DCA Duong)
+input double inp_lot_dca_am         = 0.01;   // Lot DCA Am
+input double inp_dca_duong_distance_pips   = 100.0; // Khoảng cách nhồi DCA DƯƠNG
 
-//---  Kiểm Soát Chiều Giao Dịch  ---
-input group "---  Kiểm Soát Chiều Giao Dịch  ---"
+//===================================================================
+// = 3. CÔNG TẮC MŨI NHỌN GIAO DỊCH                                 =
+//===================================================================
+input group "--- 3. Kiểm Soát Chiều Giao Dịch ---"
 input bool   inp_enable_buy         = true;   // Cho phép EA mở lệnh BUY
 input bool   inp_enable_sell        = true;   // Cho phép EA mở lệnh SELL
 input bool   inp_enable_dca_duong   = true;   // Bật/Tắt DCA DƯƠNG (Thuận xu hướng)
@@ -31,47 +34,29 @@ input bool   inp_enable_dca_am      = true;   // Bật/Tắt DCA Âm (Ngược x
 input bool   inp_enable_lot_balancing      = true;   // Bật / Tắt Cân Bằng Lot DCA DƯƠNG
 input bool   inp_enable_dca_am_xlot  = true;   // Bật / Tắt xLot DCA Am (true=nhan lot, false=lot ban dau)
 
+//===================================================================
+// = 4. CHẾ ĐỘ VÀO LỆNH PENDING (CHỐNG TRƯỢT GIÁ)                   =
+//===================================================================
+input group "--- 4. Chế Độ Pending Orders ---"
+input bool   inp_enable_pending_mode      = true;    // Bật Chế Độ Pending Orders (Chống Trượt Giá)
+input int    inp_pending_order_count      = 50;      // Số lượng lệnh Stop/Limit đặt trước mỗi biên
+input int    inp_pending_refill_threshold = 10;      // Số lệnh tối thiểu trước khi tự động nhồi thêm
+input bool   inp_pending_auto_refill      = true;    // Tự động đặt thêm khi hết
 
-//--- Trailing Stop (Lệnh Đơn - Cho DCA DƯƠNG & Lệnh Ban Đầu)
-input group "---  Trailing Stop DCA DƯƠNG  ---"
-input bool   inp_enable_individual_trailing = true;     // Bật/Tắt Trailing Stop DCA DƯƠNG
-input double inp_individual_trailing_start_pips = 200.0;    // Lợi nhuận để bắt đầu trailing
-input double inp_individual_trailing_dist_pips  = 50.0;     // Khoảng cách trailing
-
-//--- Trailing Stop THEO NHÓM (Dùng cho chuỗi DCA Âm)
-input group "---  Trailing Stop DCA Âm  ---"
-input bool   inp_enable_group_trailing       = true;     // Bật/Tắt Trailing Stop DCA ÂM
-input double inp_group_trailing_start_pips     = 20.0;     // Lợi nhuận để bắt đầu trailing
-input double inp_group_trailing_dist_pips      = 15.0;     // Khoảng cách trailing
-
-//--- DCA DƯƠNG ---
-input group "--- DCA DƯƠNG ---"
-input double inp_dca_duong_distance_pips   = 100.0; // Khoảng cách nhồi DCA DƯƠNG
-// input double inp_dca_duong_reclassify_pips = 200.0; // ĐÃ XÓA: KC chuyển DCA DƯƠNG thành DCA Âm
+//===================================================================
+// = 5. DCA DƯƠNG - SETUP NÂNG CAO                                  =
+//===================================================================
+input group "--- 5. Setup Nâng Cao DCA DƯƠNG ---"
 input double inp_balance_activation_dd     = 100.0; // DD kích hoạt Cân Bằng Lot (0 = luôn bật)
 input double inp_lot_balance_threshold     = 0.5;   // Ngưỡng chênh lệch Lot để kích hoạt cân bằng (0 = tắt)
-//--- Hạn chế DCA Cân bằng Lot theo Vùng giá ---
 input bool   inp_balance_zone_enabled      = true;    // Bật/Tắt giới hạn lệnh DCA DƯƠNG
 input double inp_balance_zone_pips       = 10.0;    // Kích thước vùng giới hạn
 input int    inp_balance_zone_max_orders   = 3;       // Số lệnh DCA DƯƠNG tối đa trong vùng
 
-//--- Quản Lý Khóa DD & Tỉa Lệnh Chéo ---
-input group "--- Quản Lý Khóa DD & Tỉa Lệnh Chéo ---"
-input double inp_dd_lock_buy_amount  = 200.0; // Ngưỡng DD để KHÓA phe BUY (0 = tắt)
-input double inp_dd_lock_sell_amount = 200.0; // Ngưỡng DD để KHÓA phe SELL (0 = tắt)
-// EMA Timeframe (Hidden)
-ENUM_TIMEFRAMES inp_ema_timeframe = PERIOD_M15;
-input bool   inp_ema_lock_sell_on_uptrend       = true;   // Bật: Khóa SELL khi có xu hướng TĂNG
-input bool   inp_ema_lock_buy_on_downtrend      = true;   // Bật: Khóa BUY khi có xu hướng GIẢM
-
-// ADX Inputs (Hidden)
-bool   InpUseAdxFilter                    = true;
-int    InpAdxPeriod                       = 14;
-double InpAdxLevel                        = 25.0;
-
-
-//---  Nâng/Hạ Lot theo Drawdown  ---
-input group "---  Nâng/Hạ Lot DCA DƯƠNG theo Drawdown  ---"
+//===================================================================
+// = 6. DCA DƯƠNG - ĐIỀU CHỈNH LOT THEO DRAWDOWN                    =
+//===================================================================
+input group "--- 6. Nâng/Hạ Lot DCA DƯƠNG theo Drawdown ---"
 input group "Mức 1";  
 input double inp_loss_level_1 = 100.0;  // DD kích hoạt mức 1
 input double inp_lot_level_1  = 0.02;   // Lot áp dụng mức 1
@@ -113,10 +98,17 @@ input double inp_loss_level_10= 1000.0; // DD kích hoạt mức 10 ($)
 input double inp_lot_level_10 = 0.10;  // Lot áp dụng mức 10
 input double inp_dist_level_10= 40.0;   // Khoảng cách DCA DƯƠNG áp dụng mức 10
 
-//--- Cài đặt DCA ÂM (Nghịch xu hướng)
-input group "---  DCA Âm  ---"
+//===================================================================
+// = 7. DCA ÂM - THIẾT LẬP CHUNG                                    =
+//===================================================================
+input group "--- 7. Cài đặt DCA Âm ---"
 input bool   inp_dca_am_less_drawdown_only = false; // DCA Âm cho phe lỗ ít hơn
 input bool   inp_trailing_dca_am_as_dca_duong = false; // DCA Âm sử dụng Lot/Distance/Trailing giống DCA Dương
+
+//===================================================================
+// = 8. DCA ÂM - SCALING NHÓM (DÀN LƯỚI DCA ÂM)                     =
+//===================================================================
+input group "--- 8. Nhóm DCA Âm (X-Lot/Distance) ---"
 input group "Nhóm 1"; 
 input int    inp_level_nhom_1 = 1;      // Level bắt đầu nhóm 1
 input double inp_multi_nhom_1 = 1.2;    // Hệ số xlot nhóm 1
@@ -198,6 +190,38 @@ input int    inp_level_nhom_20= 95;     // Level bắt đầu nhóm 20
 input double inp_multi_nhom_20= 1.01;   // Hệ số xlot nhóm 20
 input double inp_dist_nhom_20 = 500.0;   // Khoảng cách mở lệnh nhóm 20
 
+//===================================================================
+// = 9. BỘ LỌC HẠN CHẾ & KHÓA PHE GIAO DỊCH                         =
+//===================================================================
+input group "--- 9. Quản Lý Khóa DD & Tỉa Lệnh Chéo ---"
+input double inp_dd_lock_buy_amount  = 200.0; // Ngưỡng DD để KHÓA phe BUY (0 = tắt)
+input double inp_dd_lock_sell_amount = 200.0; // Ngưỡng DD để KHÓA phe SELL (0 = tắt)
+// EMA Timeframe (Hidden)
+ENUM_TIMEFRAMES inp_ema_timeframe = PERIOD_M15;
+input bool   inp_ema_lock_sell_on_uptrend       = true;   // Bật: Khóa SELL khi có xu hướng TĂNG
+input bool   inp_ema_lock_buy_on_downtrend      = true;   // Bật: Khóa BUY khi có xu hướng GIẢM
+
+// ADX Inputs (Hidden)
+bool   InpUseAdxFilter                    = true;
+int    InpAdxPeriod                       = 14;
+double InpAdxLevel                        = 25.0;
+
+//===================================================================
+// = 10. CHỐT LỜI LINH HOẠT - TRAILING STOP                         =
+//===================================================================
+input group "--- 10. Trailing Stop DCA DƯƠNG & Lệnh Đơn ---"
+input bool   inp_enable_individual_trailing = true;     // Bật/Tắt Trailing Stop DCA DƯƠNG
+input double inp_individual_trailing_start_pips = 200.0;    // Lợi nhuận để bắt đầu trailing
+input double inp_individual_trailing_dist_pips  = 50.0;     // Khoảng cách trailing
+
+input group "--- 11. Trailing Stop NHÓM DCA Âm ---"
+input bool   inp_enable_group_trailing       = true;     // Bật/Tắt Trailing Stop DCA ÂM
+input double inp_group_trailing_start_pips     = 20.0;     // Lợi nhuận để bắt đầu trailing
+input double inp_group_trailing_dist_pips      = 15.0;     // Khoảng cách trailing
+
+//===================================================================
+// = 11. TỈA LỆNH TỰ ĐỘNG BẢO VỆ VỐN                                =
+//===================================================================
 // --- Chế độ tỉa lệnh ---
 enum ENUM_TRIM_MODE
 {
@@ -219,8 +243,7 @@ enum ENUM_TRIM_STYLE
    TRIM_STYLE_RESCUE  = 1    // Rescue Fund (Trực tiếp - đóng lệnh lãi)
 };
 
-//--- Cài đặt Tỉa Lệnh (Thông thường) ---
-input group "---  Tỉa Lệnh Mặc Định  ---"
+input group "--- 12. Tỉa Lệnh Mặc Định ---"
 input bool   inp_use_trimming          = true;      // Bật/Tắt tỉa lệnh
 input ENUM_TRIM_STYLE inp_trim_style   = TRIM_STYLE_FUND; // Kiểu cơ chế tỉa lệnh
 input ENUM_TRIM_MODE inp_trim_mode     = TRIM_MODE_SAME_SIDE; // Chế độ tỉa lệnh (quỹ)
@@ -231,6 +254,9 @@ input double inp_trim_pip_distance     = 50.0;      // Khoảng cách pip kích 
 input double inp_trim_close_percentage = 30.0;      // % khối lượng muốn tỉa
 input double inp_trim_target_profit    = 5.0;       // Lợi nhuận mục tiêu sau khi tỉa
 
+//===================================================================
+// = 12. TỈA LỆNH KHẨN CẤP THEO VÙNG GẦN CHÁY TÀI KHOẢN             =
+//===================================================================
 // --- Kiểu tỉa khẩn cấp theo pip ---
 enum ENUM_PIP_TRIM_STYLE
 {
@@ -238,8 +264,7 @@ enum ENUM_PIP_TRIM_STYLE
    PIP_TRIM_HARD = 1    // Tỉa cứng (đóng ngay không cần budget)
 };
 
-//--- Cài đặt Tỉa Lệnh Khẩn Cấp ---
-input group "--- Tỉa Lệnh Khẩn Cấp ---"
+input group "--- 13. Tỉa Lệnh Khẩn Cấp ---"
 input ENUM_EMERGENCY_TRIM_MODE inp_emergency_trim_mode = ETM_DRAWDOWN; // Chế độ tỉa khẩn cấp
 input double inp_pip_emergency_threshold      = 100.0;    // Ngưỡng Pip kích hoạt (cho ETM_PIP)
 input ENUM_PIP_TRIM_STYLE inp_pip_trim_style  = PIP_TRIM_SOFT; // Kiểu tỉa theo pip
@@ -248,14 +273,11 @@ input double inp_emergency_profit_retention_day = 50.0;   // % Lợi nhuận mu�
 input double inp_emergency_dd2_amount         = 3000.0;   // DD kích hoạt tỉa theo LÃI TUẦN
 input double inp_emergency_profit_retention_week= 70.0;   // % Lợi nhuận muốn giữ lại
 
-//--- Tester Withdrawal Settings ---
-input group "--- Tester Withdrawal Settings ---"
+//===================================================================
+// = 13. SETTING MÔ PHỎNG ĐÁNH GIÁ (STRATEGY TESTER)                =
+//===================================================================
+input group "--- 14. Tester Withdrawal Settings ---"
 input bool   inp_tester_withdrawal_enabled   = false;  // Bật chế độ rút tiền ảo trong Tester
 input double inp_tester_base_balance         = 8000.0; // Số dư gốc mong muốn duy trì
 input double inp_tester_withdraw_threshold   = 1000.0; // Lợi nhuận đạt được để kích hoạt rút
 input double inp_tester_withdraw_amount      = 1000.0; // Số tiền rút mỗi lần
-
-
-
-
-
