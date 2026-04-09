@@ -4,7 +4,7 @@
 //|                      --- TỆP EA CHÍNH (MAIN FILE) ---            |
 //|               (Phiên bản 1.6 - Thêm Tỉa Lệnh Chỉ Định)            |
 //+------------------------------------------------------------------+
-#property version   "33.0" // <<< CẬP NHẬT: Phiên bản mới
+#property version   "34.0" // <<< CẬP NHẬT: Phiên bản mới
 #property description "💼 Chào mừng bạn đến với Yoogi Yin Yang – Giải pháp giao dịch MT5 thông minh và cân bằng.\n\n"
 "Thông tin cần biết cho lần đầu sử dụng:\n\n"
 "1. Mở Tool > Options > Expert Advisors.\n\n"
@@ -30,6 +30,8 @@
 
 //--- Khai b�o d?i tu?ng giao d?ch
 CTrade trade;
+
+#include "Include/PendingOrders.mqh"
 
 //--- Khai b�o h�m n?i b? ---
 void UpdateLockStatus(const PositionInfo &positions[]);
@@ -594,9 +596,31 @@ if(IsNewBar())
         }
     }
 
+    // --- LỌC LỖ NHIỀU NHẤT CHO QUỸ ALL ---
+    bool allow_buy_trim = true;
+    bool allow_sell_trim = true;
+    
+    if(inp_take_profit_usd > 0)
+    {
+        if(total_buy_profit >= 0 && total_sell_profit >= 0)
+        {
+            allow_buy_trim = false;
+            allow_sell_trim = false;
+        }
+        else if(total_buy_profit < total_sell_profit)
+        {
+            allow_sell_trim = false; // Buy đang lỗi nặng hơn
+        }
+        else if(total_sell_profit < total_buy_profit)
+        {
+            allow_buy_trim = false; // Sell đang lỗi nặng hơn
+        }
+    }
+
     // --- Phe BUY ---
-    if((inp_trim_trigger_mode == TRIM_BY_COUNT && total_buy_pos >= inp_trim_trigger_level) ||
-       (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0))
+    if(allow_buy_trim && 
+       ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_buy_pos >= inp_trim_trigger_level) ||
+       (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
     {
 //         Log("DEBUG", "BUY: CHE DO TIA CUNG CHIEU (so lenh >= trigger)");
         
@@ -681,8 +705,9 @@ if(IsNewBar())
     }
     
     // --- Phe SELL ---
-    if((inp_trim_trigger_mode == TRIM_BY_COUNT && total_sell_pos >= inp_trim_trigger_level) ||
-       (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0))
+    if(allow_sell_trim && 
+       ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_sell_pos >= inp_trim_trigger_level) ||
+       (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
     {
 //         Log("DEBUG", "SELL: CHE DO TIA CUNG CHIEU (so lenh >= trigger)");
         
@@ -827,6 +852,7 @@ void UpdateLockStatus(const PositionInfo &positions[])
     {
         string reason = is_locked_by_dd_buy ? StringFormat("do DD (%.2f) vu?t ngu?ng %.2f", buy_profit, -inp_dd_lock_buy_amount) : "do t�n hi?u EMA";
         Log("WARNING", "PHE BUY B? KH�A " + reason + ".");
+        DeletePendingOrdersByType(POSITION_TYPE_BUY);
     }
     if(!g_is_buy_locked && previous_buy_lock_status)
     {
@@ -855,6 +881,7 @@ void UpdateLockStatus(const PositionInfo &positions[])
     {
         string reason = is_locked_by_dd_sell ? StringFormat("do DD (%.2f) vu?t ngu?ng %.2f", sell_profit, -inp_dd_lock_sell_amount) : "do t�n hi?u EMA";
         Log("WARNING", "PHE SELL B? KH�A " + reason + ".");
+        DeletePendingOrdersByType(POSITION_TYPE_SELL);
     }
     if(!g_is_sell_locked && previous_sell_lock_status)
     {
@@ -922,14 +949,14 @@ void ProcessNewDeals()
                 if(deal_magic == inp_magic_number)
                 {
                     should_account = true;
-                    Log("INFO", "Ph�t hi?n l?nh #" + (string)position_id + " c?a EA d� d�ng (t? d?ng). C?p nh?t s? s�ch...");
+                    Log("INFO", "Phat hien lenh #" + (string)position_id + " cua EA da dong (tu dong). Cap nhat so sach...");
                 }
                 else if(deal_magic == 0)
                 {
                     if(IsTicketInMemory(position_id))
                     {
                         should_account = true;
-                        Log("WARNING", "Ph�t hi?n l?nh #" + (string)position_id + " c?a EA d� d�ng (TH? C�NG). C?p nh?t s? s�ch...");
+                        Log("WARNING", "Phat hien lenh #" + (string)position_id + " cua EA da dong (THU CONG). Cap nhat so sach...");
                     }
                 }
 

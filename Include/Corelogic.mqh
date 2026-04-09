@@ -220,6 +220,8 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
 
    if(!inp_enable_buy || total_buy_pos == 0) return;
 
+   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, SymbolInfoDouble(_Symbol, SYMBOL_ASK));
+
    double hp=0,lp=999999;
    for(int i = 0; i < ArraySize(positions); i++){
       if(positions[i].type == POSITION_TYPE_BUY) {
@@ -246,6 +248,7 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
       if(g_is_buy_locked_by_ema) return; 
 
       if(!IsBalanceOrderAllowedInZone(POSITION_TYPE_BUY, positions)) return;
+      if(inp_enable_pending_mode) return;
       if(!trade.Buy(g_current_base_lot_buy,_Symbol,0,0,0,"DCA DUONG")) Log("ERROR",StringFormat("Loi mo lenh DCA DUONG BUY. Ma loi: %d", (int)trade.ResultRetcode()));
    }
 
@@ -257,7 +260,6 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
          // Kiểm tra nếu Buy lỗ NHIỀU HƠN Sell thì KHÓA
          if(total_buy_profit < total_sell_profit)
          {
-            Log("DEBUG", StringFormat("DCA AM BUY bi khoa do phe Buy (%.2f) lo nhieu hon phe Sell (%.2f).", total_buy_profit, total_sell_profit));
             return;
          }
       }
@@ -288,6 +290,8 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
    
    if(!inp_enable_sell || total_sell_pos == 0) return;
 
+   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, SymbolInfoDouble(_Symbol, SYMBOL_BID));
+
    double hp=0,lp=999999;
    for(int i = 0; i < ArraySize(positions); i++){
       if(positions[i].type == POSITION_TYPE_SELL) {
@@ -314,6 +318,7 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
       if(g_is_sell_locked_by_ema) return;
 
       if(!IsBalanceOrderAllowedInZone(POSITION_TYPE_SELL, positions)) return;
+      if(inp_enable_pending_mode) return;
       if(!trade.Sell(g_current_base_lot_sell,_Symbol,0,0,0,"DCA DUONG")) Log("ERROR",StringFormat("Loi mo lenh DCA DUONG SELL. Ma loi: %d", (int)trade.ResultRetcode()));
    }
    
@@ -325,7 +330,6 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
          // Kiểm tra nếu Sell lỗ NHIỀU HƠN Buy thì KHÓA
          if(total_sell_profit < total_buy_profit)
          {
-            Log("DEBUG", StringFormat("DCA AM SELL bi khoa do phe Sell (%.2f) lo nhieu hon phe Buy (%.2f).", total_sell_profit, total_buy_profit));
             return;
          }
       }
@@ -362,7 +366,7 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
          Log("INFO","--- CHU TRINH BUY MOI ---");
          double t=0;
          if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_ASK)+(double)PipToPoints(inp_initial_tp_pips)*_Point;}
-         if(!trade.Buy(g_current_base_lot_buy,_Symbol,0.0,0.0,t,"Initial Buy")) Log("ERROR",StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
+         if(!trade.Buy(g_current_base_lot_buy,_Symbol,0.0,0.0,t,"Initial Buy")) { PlaceInitialStopOrders(POSITION_TYPE_BUY, SymbolInfoDouble(_Symbol, SYMBOL_ASK)); } else Log("ERROR",StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
       }
    }
 
@@ -379,7 +383,7 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
          Log("INFO","--- CHU TRINH SELL MOI ---");
          double t=0;
          if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_BID)-(double)PipToPoints(inp_initial_tp_pips)*_Point;}
-         if(!trade.Sell(g_current_base_lot_sell,_Symbol,0.0,0.0,t,"Initial Sell")) Log("ERROR",StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
+         if(!trade.Sell(g_current_base_lot_sell,_Symbol,0.0,0.0,t,"Initial Sell")) { PlaceInitialStopOrders(POSITION_TYPE_SELL, SymbolInfoDouble(_Symbol, SYMBOL_BID)); } else Log("ERROR",StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
       }
    }
 }
@@ -658,6 +662,7 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
 
 void CloseAllPositionsByEA(const PositionInfo &positions[])
 {
+   DeleteAllPendingOrders();
    Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Bat dau dong tat ca %d lenh...", inp_take_profit_usd, ArraySize(positions)));
    g_last_close_reason = CR_TACTICAL;
    int failed_closes = 0;
