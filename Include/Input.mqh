@@ -38,10 +38,10 @@ input bool   inp_enable_dca_am_xlot = true;   // Bật/Tắt xLot DCA Âm (true=
 // = 4. CHẾ ĐỘ PENDING ORDERS (CHỐNG TRƯỢT GIÁ GAP LỆNH)            =
 //===================================================================
 input group "--- 4. Chế Độ Pending Orders ---"
-input bool   inp_enable_pending_mode      = true;  // [ON/OFF] Bật Stop/Limit
-input int    inp_pending_order_count      = 50;    // Số lệnh Stop/Limit đặt sẵn 
-input int    inp_pending_refill_threshold = 10;    // Còn dưới {N} lệnh sẽ tự động nhồi thêm
-input bool   inp_pending_auto_refill      = true;  // Tự động đặt thêm khi gần hết
+input bool   inp_enable_pending_mode      = true;           // [ON/OFF] Bật Chế Độ Pending Orders (Chống Trượt MẠNH)
+input int    inp_pending_order_count      = 50;             // Số lượng lệnh Stop/Limit đặt trước mỗi biên
+input int    inp_pending_refill_threshold = 10;             // Số lệnh tối thiểu trước khi tự động nhồi thêm
+input bool   inp_pending_auto_refill      = true;           // Tự động kích hoạt nhồi lệnh mồi khi lưới sắp hết
 
 //===================================================================
 // = 5. DCA DƯƠNG - CỤM SETUP NÂNG CAO                              =
