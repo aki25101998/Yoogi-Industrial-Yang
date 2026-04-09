@@ -4,7 +4,7 @@
 //|                      --- TỆP EA CHÍNH (MAIN FILE) ---            |
 //|               (Phiên bản 1.6 - Thêm Tỉa Lệnh Chỉ Định)            |
 //+------------------------------------------------------------------+
-#property version   "34.0" // <<< CẬP NHẬT: Phiên bản mới
+#property version   "35.0" // <<< CẬP NHẬT: Phiên bản mới
 #property description "💼 Chào mừng bạn đến với Yoogi Yin Yang – Giải pháp giao dịch MT5 thông minh và cân bằng.\n\n"
 "Thông tin cần biết cho lần đầu sử dụng:\n\n"
 "1. Mở Tool > Options > Expert Advisors.\n\n"
