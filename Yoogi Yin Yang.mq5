@@ -2,9 +2,9 @@
 //|                                              Yoogi Yin Yang.mq5  |
 //|                                                 Yoogi Yin Yang   |
 //|                      --- TỆP EA CHÍNH (MAIN FILE) ---            |
-//|               (Phiên bản 37.0 - Chữa cháy lưới rải F3)           |
+//|               (Phiên bản 37.3 - Lưới rải siêu khôi phục)          |
 //+------------------------------------------------------------------+
-#property version   "37.0" // <<< CẬP NHẬT: Phiên bản mới
+#property version   "37.3" // <<< CẬP NHẬT: Phiên bản siêu phục hồi
 #property description "💼 Chào mừng bạn đến với Yoogi Yin Yang – Giải pháp giao dịch MT5 thông minh và cân bằng.\n\n"
 "Thông tin cần biết cho lần đầu sử dụng:\n\n"
 "1. Mở Tool > Options > Expert Advisors.\n\n"
