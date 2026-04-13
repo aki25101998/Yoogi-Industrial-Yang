@@ -16,6 +16,17 @@ struct PositionInfo
     datetime open_time;
 };
 
+struct PendingInfo
+{
+    ulong ticket;
+    double volume;
+    double open_price;
+    ENUM_ORDER_TYPE type;
+    ENUM_POSITION_TYPE position_type;
+    string comment;
+    datetime open_time;
+};
+
 int handle_adx = INVALID_HANDLE; // Handle cho chi bao ADX
 //+------------------------------------------------------------------+
 //|                                                      Globals.mqh |
@@ -157,6 +168,14 @@ E_CLOSE_REASON LookupCloseReason(ulong position_id)
 ulong    g_last_processed_deal_count = 0;
 ulong    g_open_position_tickets[];
 
+//--- BIEN TOAN CUC (Cache Pending Orders & Grid Healing) ---
+PendingInfo g_pending_orders[];
+int      g_total_buy_pending = 0;
+int      g_total_sell_pending = 0;
+double   g_furthest_buy_pending_price = 0;
+double   g_furthest_sell_pending_price = 0;
+ulong    g_last_heal_check_time = 0;
+
 //--- BI?N TOÀN C?C (H? th?ng S? Sách K? Toán) ---
 double   g_safe_day = 0.0;
 double   g_budget_day = 0.0;
@@ -175,6 +194,8 @@ int      g_prev_buy_count = 0;    // Số lệnh BUY lần tick trước
 int      g_prev_sell_count = 0;   // Số lệnh SELL lần tick trước
 bool     g_buy_distance_triggered = false;   // BUY đã có lệnh đạt pip distance
 bool     g_sell_distance_triggered = false;  // SELL đã có lệnh đạt pip distance
+
+bool     g_is_closing_tp_usd = false;        // Trang thai dang clear lenh do dat TP USD
 
 // Bi?n theo dõi chu k? d? reset
 datetime g_last_known_day = 0;
@@ -227,6 +248,12 @@ void InitializeGlobalVariables()
 
    g_last_processed_deal_count = 0;
    ArrayResize(g_open_position_tickets, 0);
+   ArrayResize(g_pending_orders, 0);
+   g_total_buy_pending = 0;
+   g_total_sell_pending = 0;
+   g_furthest_buy_pending_price = 0;
+   g_furthest_sell_pending_price = 0;
+   g_last_heal_check_time = 0;
 
    // Kh?i t?o các bi?n s? sách
    g_safe_day = 0.0;
@@ -241,6 +268,7 @@ void InitializeGlobalVariables()
    // Giu nguyen quy tia lenh (khong reset khi khoi dong)
    g_buy_distance_triggered = false;
    g_sell_distance_triggered = false;
+   g_is_closing_tp_usd = false;
 }
 
 

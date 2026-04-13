@@ -134,6 +134,9 @@ void OnPanelChartEvent(const int id, const long &lparam, const double &dparam, c
 //+------------------------------------------------------------------+
 //| LOGIC ĐÓNG LỆNH                                                  |
 //+------------------------------------------------------------------+
+// Forward declaration for Pending Orders
+void DeleteAllPendingOrders();
+
 void CloseAllPositions()
 {
     int closed_count = 0;
@@ -149,8 +152,11 @@ void CloseAllPositions()
             }
         }
     }
-    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh.");
+    DeleteAllPendingOrders();
+    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh và xoá tất cả pending orders.");
 }
+
+void DeletePendingOrdersByType(ENUM_POSITION_TYPE type);
 
 void CloseBuyPositions()
 {
@@ -169,7 +175,8 @@ void CloseBuyPositions()
             }
         }
     }
-    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh BUY.");
+    DeletePendingOrdersByType(POSITION_TYPE_BUY);
+    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh BUY và xoá lệnh chờ BUY.");
 }
 
 void CloseSellPositions()
@@ -189,7 +196,8 @@ void CloseSellPositions()
             }
         }
     }
-    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh SELL.");
+    DeletePendingOrdersByType(POSITION_TYPE_SELL);
+    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh SELL và xoá lệnh chờ SELL.");
 }
 //+------------------------------------------------------------------+
 

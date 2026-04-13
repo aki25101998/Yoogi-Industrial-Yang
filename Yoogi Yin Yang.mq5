@@ -2,9 +2,9 @@
 //|                                              Yoogi Yin Yang.mq5  |
 //|                                                 Yoogi Yin Yang   |
 //|                      --- TỆP EA CHÍNH (MAIN FILE) ---            |
-//|               (Phiên bản 1.6 - Thêm Tỉa Lệnh Chỉ Định)            |
+//|               (Phiên bản 37.0 - Chữa cháy lưới rải F3)           |
 //+------------------------------------------------------------------+
-#property version   "36.0" // <<< CẬP NHẬT: Phiên bản mới
+#property version   "37.0" // <<< CẬP NHẬT: Phiên bản mới
 #property description "💼 Chào mừng bạn đến với Yoogi Yin Yang – Giải pháp giao dịch MT5 thông minh và cân bằng.\n\n"
 "Thông tin cần biết cho lần đầu sử dụng:\n\n"
 "1. Mở Tool > Options > Expert Advisors.\n\n"
@@ -155,24 +155,71 @@ void OnTick()
                     commentless_indices[commentless_count] = current_ea_pos_count;
                     commentless_count++;
                 }
+                
+                // Tinh hp/lp cho TOAN BO positions
+                if(positions[current_ea_pos_count].type == POSITION_TYPE_BUY)
+                {
+                     if(positions[current_ea_pos_count].open_price > highest_buy_price) highest_buy_price = positions[current_ea_pos_count].open_price;
+                     if(positions[current_ea_pos_count].open_price < lowest_buy_price) lowest_buy_price = positions[current_ea_pos_count].open_price;
+                }
                 else
                 {
-                    if(positions[current_ea_pos_count].type == POSITION_TYPE_BUY)
-                    {
-                        if(positions[current_ea_pos_count].open_price > highest_buy_price) highest_buy_price = positions[current_ea_pos_count].open_price;
-                        if(positions[current_ea_pos_count].open_price < lowest_buy_price) lowest_buy_price = positions[current_ea_pos_count].open_price;
-                    }
-                    else
-                    {
-                        if(positions[current_ea_pos_count].open_price > highest_sell_price) highest_sell_price = positions[current_ea_pos_count].open_price;
-                        if(positions[current_ea_pos_count].open_price < lowest_sell_price) lowest_sell_price = positions[current_ea_pos_count].open_price;
-                    }
+                     if(positions[current_ea_pos_count].open_price > highest_sell_price) highest_sell_price = positions[current_ea_pos_count].open_price;
+                     if(positions[current_ea_pos_count].open_price < lowest_sell_price) lowest_sell_price = positions[current_ea_pos_count].open_price;
                 }
+                
                 current_ea_pos_count++;
             }
         }
     }
     ArrayResize(positions, current_ea_pos_count);
+
+    // --- PHA 1.5: THU TH?P D? LI?U PENDING ORDERS (V L?T) ---
+    int total_orders_on_chart = OrdersTotal();
+    ArrayResize(g_pending_orders, total_orders_on_chart);
+    int current_ea_pending_count = 0;
+    
+    g_total_buy_pending = 0;
+    g_total_sell_pending = 0;
+    g_furthest_buy_pending_price = 0;
+    g_furthest_sell_pending_price = 0;
+    
+    for(int i = total_orders_on_chart - 1; i >= 0; i--)
+    {
+        ulong ticket = OrderGetTicket(i);
+        if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
+        {
+            g_pending_orders[current_ea_pending_count].ticket = ticket;
+            g_pending_orders[current_ea_pending_count].volume = OrderGetDouble(ORDER_VOLUME_INITIAL);
+            double price = OrderGetDouble(ORDER_PRICE_OPEN);
+            g_pending_orders[current_ea_pending_count].open_price = price;
+            ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+            g_pending_orders[current_ea_pending_count].type = order_type;
+            g_pending_orders[current_ea_pending_count].comment = OrderGetString(ORDER_COMMENT);
+            g_pending_orders[current_ea_pending_count].open_time = (datetime)OrderGetInteger(ORDER_TIME_SETUP);
+            
+            if(order_type == ORDER_TYPE_BUY_STOP || order_type == ORDER_TYPE_BUY_LIMIT)
+            {
+               g_pending_orders[current_ea_pending_count].position_type = POSITION_TYPE_BUY;
+               if(order_type == ORDER_TYPE_BUY_STOP)
+               {
+                  g_total_buy_pending++;
+                  if(g_furthest_buy_pending_price == 0 || price > g_furthest_buy_pending_price) g_furthest_buy_pending_price = price;
+               }
+            }
+            else if(order_type == ORDER_TYPE_SELL_STOP || order_type == ORDER_TYPE_SELL_LIMIT)
+            {
+               g_pending_orders[current_ea_pending_count].position_type = POSITION_TYPE_SELL;
+               if(order_type == ORDER_TYPE_SELL_STOP)
+               {
+                  g_total_sell_pending++;
+                  if(g_furthest_sell_pending_price == 0 || price < g_furthest_sell_pending_price) g_furthest_sell_pending_price = price;
+               }
+            }
+            current_ea_pending_count++;
+        }
+    }
+    ArrayResize(g_pending_orders, current_ea_pending_count);
 
     // --- PHA 2: SUY LU?N COMMENT CHO L?NH M? C�I ---
     for(int i = 0; i < commentless_count; i++)
@@ -244,16 +291,36 @@ void OnTick()
     }
 
 // ================================================================= //
-//        B? KI?M TRA TP THEO USD TO�N EA (v1.5)                     //
+//        B? KI?M TRA TP THEO USD TON EA (v1.5)                     //
 // ================================================================= //
     if(inp_take_profit_usd > 0)
     {
         double total_ea_profit = g_fund_all + total_buy_profit + total_sell_profit;
-        if(total_ea_profit >= inp_take_profit_usd)
+        if(total_ea_profit >= inp_take_profit_usd || g_is_closing_tp_usd)
         {
+            if(!g_is_closing_tp_usd)
+            {
+               Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Dang kich hoat xoa toan bo lenh...", inp_take_profit_usd));
+               g_is_closing_tp_usd = true;
+            }
+            
             CloseAllPositionsByEA(positions);
-            g_fund_all = 0.0;
-            SaveBudget();
+            
+            // Kiem tra thu con lenh nao khong (open va pending)
+            int remaining_open = CountPositions(POSITION_TYPE_BUY) + CountPositions(POSITION_TYPE_SELL);
+            int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
+            
+            if(remaining_open == 0 && remaining_pending == 0)
+            {
+               Log("INFO", "TP USD: Xoa thanh cong TAT CA lenh open va pending. Reset QUY ALL ve 0.0");
+               g_fund_all = 0.0;
+               g_is_closing_tp_usd = false;
+               SaveBudget();
+            }
+            else
+            {
+               Log("WARNING", StringFormat("TP USD: Van con %d lenh mo, %d lenh pending. Se thu lai vao tick tiep theo.", remaining_open, remaining_pending));
+            }
             return; // Dừng ngay lập tức
         }
     }
@@ -263,7 +330,7 @@ void OnTick()
 
 
 // ================================================================= //
-//        B? N�O QUY?T �?NH (v4.0 - Th�m Uu ti�n 0: T?a Ch? �?nh)      //
+//        B? NO QUY?T ?NH (v4.0 - Thm Uu tin 0: T?a Ch? ?nh)      //
 // ================================================================= //
 if(IsNewBar())
 {
@@ -449,6 +516,7 @@ if(IsNewBar())
 
 
     // --- C�C LOGIC CH?Y M?I TICK ---
+    HealGridGaps(positions, g_pending_orders);
     UpdateDynamicBaseLot(positions);
     
     double total_drawdown = total_buy_profit + total_sell_profit;
@@ -476,8 +544,8 @@ if(IsNewBar())
     UpdateLockStatus(positions);
 
     CheckAndOpenInitialTrades(total_buy_pos, total_sell_pos);
-    ManageBuyPositions(positions, total_buy_pos, pure_dca_am_buy_pos, total_buy_profit, total_sell_profit);
-    ManageSellPositions(positions, total_sell_pos, pure_dca_am_sell_pos, total_buy_profit, total_sell_profit);
+    ManageBuyPositions(positions, total_buy_pos, pure_dca_am_buy_pos, total_buy_profit, total_sell_profit, highest_buy_price, lowest_buy_price);
+    ManageSellPositions(positions, total_sell_pos, pure_dca_am_sell_pos, total_buy_profit, total_sell_profit, highest_sell_price, lowest_sell_price);
     
     ManageTrailingStops(positions, total_buy_pos, total_sell_pos);
     

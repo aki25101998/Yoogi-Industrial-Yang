@@ -214,21 +214,13 @@ void ManageTrailingStops(const PositionInfo &positions[], int total_buy_position
    }
 }
 
-void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int pure_dca_am_buy_pos, double total_buy_profit, double total_sell_profit)
+void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int pure_dca_am_buy_pos, double total_buy_profit, double total_sell_profit, double hp, double lp)
 {
    if(g_is_buy_locked) return;
 
    if(!inp_enable_buy || total_buy_pos == 0) return;
 
    if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, SymbolInfoDouble(_Symbol, SYMBOL_ASK));
-
-   double hp=0,lp=999999;
-   for(int i = 0; i < ArraySize(positions); i++){
-      if(positions[i].type == POSITION_TYPE_BUY) {
-         if(positions[i].open_price > hp) hp = positions[i].open_price;
-         if(positions[i].open_price < lp) lp = positions[i].open_price;
-      }
-   }
    double ca=SymbolInfoDouble(_Symbol,SYMBOL_ASK);
 
    bool ad=ca>=(hp+(double)PipToPoints(g_current_dca_duong_distance)*_Point);
@@ -284,21 +276,13 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
    }
 }
 
-void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, int pure_dca_am_sell_pos, double total_buy_profit, double total_sell_profit)
+void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, int pure_dca_am_sell_pos, double total_buy_profit, double total_sell_profit, double hp, double lp)
 {
    if(g_is_sell_locked) return;
    
    if(!inp_enable_sell || total_sell_pos == 0) return;
 
    if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, SymbolInfoDouble(_Symbol, SYMBOL_BID));
-
-   double hp=0,lp=999999;
-   for(int i = 0; i < ArraySize(positions); i++){
-      if(positions[i].type == POSITION_TYPE_SELL) {
-         if(positions[i].open_price > hp) hp = positions[i].open_price;
-         if(positions[i].open_price < lp) lp = positions[i].open_price;
-      }
-   }
    double cb=SymbolInfoDouble(_Symbol,SYMBOL_BID);
 
    bool ad=cb<=(lp-(double)PipToPoints(g_current_dca_duong_distance)*_Point);
@@ -363,10 +347,15 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
       else
       {
          g_last_buy_dca_am_group_index = -1;
+         DeletePendingOrdersByType(POSITION_TYPE_BUY);
          Log("INFO","--- CHU TRINH BUY MOI ---");
          double t=0;
          if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_ASK)+(double)PipToPoints(inp_initial_tp_pips)*_Point;}
-         if(!trade.Buy(g_current_base_lot_buy,_Symbol,0.0,0.0,t,"Initial Buy")) { PlaceInitialStopOrders(POSITION_TYPE_BUY, SymbolInfoDouble(_Symbol, SYMBOL_ASK)); } else Log("ERROR",StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
+         if(trade.Buy(g_current_base_lot_buy,_Symbol,0.0,0.0,t,"Initial Buy")) { 
+            double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+            PlaceInitialStopOrders(POSITION_TYPE_BUY, current_ask); 
+            GlobalVariableSet("LastInitialBuyPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), current_ask);
+         } else Log("ERROR",StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
       }
    }
 
@@ -380,10 +369,15 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
       else
       {
          g_last_sell_dca_am_group_index = -1;
+         DeletePendingOrdersByType(POSITION_TYPE_SELL);
          Log("INFO","--- CHU TRINH SELL MOI ---");
          double t=0;
          if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_BID)-(double)PipToPoints(inp_initial_tp_pips)*_Point;}
-         if(!trade.Sell(g_current_base_lot_sell,_Symbol,0.0,0.0,t,"Initial Sell")) { PlaceInitialStopOrders(POSITION_TYPE_SELL, SymbolInfoDouble(_Symbol, SYMBOL_BID)); } else Log("ERROR",StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
+         if(trade.Sell(g_current_base_lot_sell,_Symbol,0.0,0.0,t,"Initial Sell")) { 
+            double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+            PlaceInitialStopOrders(POSITION_TYPE_SELL, current_bid); 
+            GlobalVariableSet("LastInitialSellPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), current_bid);
+         } else Log("ERROR",StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
       }
    }
 }

@@ -1,4 +1,21 @@
 //+------------------------------------------------------------------+
+//| Wrapper for PositionClose to support Limit Replacements          |
+//+------------------------------------------------------------------+
+bool MyPositionClose(ulong ticket)
+{
+    if(trade.PositionClose(ticket))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool MyPositionClosePartial(ulong ticket, double volume)
+{
+    return trade.PositionClosePartial(ticket, volume);
+}
+
+//+------------------------------------------------------------------+
 //|                                                     Trimming.mqh |
 //|                                                 Yoogi Yin Yang   |
 //|             --- TEP CHUA TOAN BO LOGIC TIA LENH ---               |
@@ -161,7 +178,7 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
       // Quy du -> Thuc hien tia TOAN PHAN
       g_last_close_reason = CR_TACTICAL;
       
-      if(trade.PositionClose(patient_ticket))
+      if(MyPositionClose(patient_ticket))
       {
           AddTacticalClose(patient_ticket);
          if(inp_take_profit_usd == 0) {
@@ -204,7 +221,7 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
          if(current_fund >= needed_partial)
          {
             g_last_close_reason = CR_TACTICAL;
-            if(trade.PositionClosePartial(patient_ticket, volume_to_close))
+            if(MyPositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
                if(inp_take_profit_usd == 0) {
@@ -360,7 +377,7 @@ double AttemptEmergencyTrim(string period_type, double budget, const PositionInf
 
    if(budget >= patient_loss_amount) 
    { 
-       if(trade.PositionClose(patient_ticket)) 
+       if(MyPositionClose(patient_ticket)) 
        { 
            AddEmergencyClose(patient_ticket);
            Log("INFO", "Tia KC thanh cong, da dong lenh #" + (string)patient_ticket + "."); 
@@ -388,7 +405,7 @@ double AttemptEmergencyTrim(string period_type, double budget, const PositionInf
        if(volume_to_close >= min_volume_to_close) 
        { 
            double actual_loss_to_cover = patient_loss_amount * (volume_to_close / patient_volume);
-           if(trade.PositionClosePartial(patient_ticket, volume_to_close)) 
+           if(MyPositionClosePartial(patient_ticket, volume_to_close)) 
            { 
                AddEmergencyClose(patient_ticket);
                Log("INFO", "Tia KC mot phan thanh cong cho lenh #" + (string)patient_ticket + ".");
@@ -465,7 +482,7 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
             // --- CHE DO TIA CUNG: Dong ngay khong can budget ---
             if(inp_pip_trim_style == PIP_TRIM_HARD)
             {
-                if(trade.PositionClose(positions[i].ticket))
+                if(MyPositionClose(positions[i].ticket))
                 {
                     AddEmergencyClose(positions[i].ticket);
                     Log("INFO", StringFormat("TIA CUNG PIP: Da dong lenh #%I64u (lo %.1f pip). Khong can budget.", positions[i].ticket, pip_loss));
@@ -479,7 +496,7 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
             // Uu tien dung budget ngay truoc
             if(g_budget_day > SAFE_MARGIN && g_budget_day >= patient_loss_amount)
             {
-                if(trade.PositionClose(positions[i].ticket))
+                if(MyPositionClose(positions[i].ticket))
                 {
                     AddEmergencyClose(positions[i].ticket);
                     Log("INFO", StringFormat("Tia PIP KC: Dong toan bo lenh #%I64u bang Budget NGAY.", positions[i].ticket));
@@ -493,7 +510,7 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
             // Neu budget ngay khong du, dung budget tuan
             else if(g_budget_week > SAFE_MARGIN && g_budget_week >= patient_loss_amount)
             {
-                if(trade.PositionClose(positions[i].ticket))
+                if(MyPositionClose(positions[i].ticket))
                 {
                     AddEmergencyClose(positions[i].ticket);
                     Log("INFO", StringFormat("Tia PIP KC: Dong toan bo lenh #%I64u bang Budget TUAN.", positions[i].ticket));
@@ -517,7 +534,7 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
                     if(volume_to_close >= min_volume)
                     {
                         string budget_type = (g_budget_day >= g_budget_week) ? "NGAY" : "TUAN";
-                        if(trade.PositionClosePartial(positions[i].ticket, volume_to_close))
+                        if(MyPositionClosePartial(positions[i].ticket, volume_to_close))
                         {
                             AddEmergencyClose(positions[i].ticket);
                             Log("INFO", StringFormat("Tia PIP KC: Dong mot phan (%.2f lot) lenh #%I64u bang Budget %s.", 
@@ -606,7 +623,7 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
       // Quy du -> Thuc hien tia TOAN PHAN
       g_last_close_reason = CR_TACTICAL;
       
-      if(trade.PositionClose(patient_ticket))
+      if(MyPositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
          if(inp_take_profit_usd == 0) {
@@ -649,7 +666,7 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
          if(current_fund >= needed_partial)
          {
             g_last_close_reason = CR_TACTICAL;
-            if(trade.PositionClosePartial(patient_ticket, volume_to_close))
+            if(MyPositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
                if(inp_take_profit_usd == 0) {
@@ -752,7 +769,7 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
       // Quy du -> Thuc hien tia TOAN PHAN
       g_last_close_reason = CR_TACTICAL;
       
-      if(trade.PositionClose(patient_ticket))
+      if(MyPositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
          if(inp_take_profit_usd == 0) {
@@ -795,7 +812,7 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
          if(current_fund >= needed_partial)
          {
             g_last_close_reason = CR_TACTICAL;
-            if(trade.PositionClosePartial(patient_ticket, volume_to_close))
+            if(MyPositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
                if(inp_take_profit_usd == 0) {
@@ -898,7 +915,7 @@ bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
       // Quy du -> Thuc hien tia TOAN PHAN
       g_last_close_reason = CR_TACTICAL;
       
-      if(trade.PositionClose(patient_ticket))
+      if(MyPositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
          if(inp_take_profit_usd == 0) {
@@ -941,7 +958,7 @@ bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
          if(current_fund >= needed_partial)
          {
             g_last_close_reason = CR_TACTICAL;
-            if(trade.PositionClosePartial(patient_ticket, volume_to_close))
+            if(MyPositionClosePartial(patient_ticket, volume_to_close))
             {
                AddTacticalClose(patient_ticket);
                if(inp_take_profit_usd == 0) {
@@ -1059,7 +1076,7 @@ bool ExecuteRescueTrim(
 
       for(int i = 0; i < ArraySize(rescue_fund); i++)
       {
-         if(trade.PositionClose(rescue_fund[i].ticket))
+         if(MyPositionClose(rescue_fund[i].ticket))
          {
             AddTacticalClose(rescue_fund[i].ticket);
             collected_profit += rescue_fund[i].profit;
@@ -1067,7 +1084,7 @@ bool ExecuteRescueTrim(
          if(collected_profit >= needed_profit) break;
       }
 
-      if(trade.PositionClose(patient_ticket))
+      if(MyPositionClose(patient_ticket))
       {
          AddTacticalClose(patient_ticket);
          Log("INFO", StringFormat("%s RESCUE: Tia TOAN PHAN thanh cong cho lenh #%I64u!", log_prefix, patient_ticket));
@@ -1098,7 +1115,7 @@ bool ExecuteRescueTrim(
 
       for(int i = 0; i < ArraySize(rescue_fund); i++)
       {
-         if(trade.PositionClose(rescue_fund[i].ticket))
+         if(MyPositionClose(rescue_fund[i].ticket))
          {
             AddTacticalClose(rescue_fund[i].ticket);
             collected_profit += rescue_fund[i].profit;
@@ -1106,7 +1123,7 @@ bool ExecuteRescueTrim(
          if(collected_profit >= needed_profit) break;
       }
 
-      if(trade.PositionClosePartial(patient_ticket, volume_to_close))
+      if(MyPositionClosePartial(patient_ticket, volume_to_close))
       {
          AddTacticalClose(patient_ticket);
          Log("INFO", StringFormat("%s RESCUE: Tia MOT PHAN (%.2f lot) thanh cong cho lenh #%I64u!", log_prefix, volume_to_close, patient_ticket));

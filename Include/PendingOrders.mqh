@@ -7,22 +7,9 @@
 // Đếm số lượng lệnh pending (theo chiều) đang mở
 int CountPendingOrdersByType(ENUM_POSITION_TYPE type)
 {
-    int count = 0;
-    int total_orders = OrdersTotal();
-    for(int i = 0; i < total_orders; i++)
-    {
-        ulong ticket = OrderGetTicket(i);
-        if(ticket > 0)
-        {
-            if(OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
-            {
-                ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
-                if(type == POSITION_TYPE_BUY && order_type == ORDER_TYPE_BUY_STOP) count++;
-                if(type == POSITION_TYPE_SELL && order_type == ORDER_TYPE_SELL_STOP) count++;
-            }
-        }
-    }
-    return count;
+    if(type == POSITION_TYPE_BUY) return g_total_buy_pending;
+    else if(type == POSITION_TYPE_SELL) return g_total_sell_pending;
+    return 0;
 }
 
 // Xóa tất cả các lệnh pending
@@ -111,26 +98,9 @@ void PlaceInitialStopOrders(ENUM_POSITION_TYPE type, double initial_price)
 }
 
 // Đặt Limit khi một lệnh bị tỉa ra
-void PlaceLimitOrderDCA_Am(ENUM_POSITION_TYPE type, double at_price, int dca_am_level_virtual)
+void PlaceReplacementLimitOrder(ENUM_POSITION_TYPE type, double at_price)
 {
-    if(!inp_enable_pending_mode) return; // Chi mo khi dang On Che Do Pending
-    
-    // Tinh toan Khoi luong tuong ung DCA am level:
-    double lot_limit = GetLotSize_ForDCA_Am(dca_am_level_virtual, (type == POSITION_TYPE_BUY) ? inp_lot_dca_duong : inp_lot_dca_duong);
-    
-    Log("INFO", StringFormat("Tia lenh %s thanh cong tao gia %f. Dat %s Limit (Lot: %f) de cho vao lai DCA Am.",
-        EnumToString(type), at_price, (type == POSITION_TYPE_BUY ? "Buy" : "Sell"), lot_limit));
-        
-    if(type == POSITION_TYPE_BUY)
-    {
-        if(!trade.BuyLimit(lot_limit, at_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA AM"))
-             Log("ERROR", StringFormat("DCA Am (Buy Limit Thay The) That bai, Ma Loi: %d", trade.ResultRetcode()));
-    }
-    else
-    {
-        if(!trade.SellLimit(lot_limit, at_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA AM"))
-             Log("ERROR", StringFormat("DCA Am (Sell Limit Thay The) That bai, Ma Loi: %d", trade.ResultRetcode()));
-    }
+    // Ham nay da duoc thay the bang tinh nang tu dong va (HealGridGaps)
 }
 
 // Refill (nhồi lệnh vào đuôi của Stop list)
@@ -147,31 +117,22 @@ void RefillStopOrdersIfNeeded(ENUM_POSITION_TYPE type, double initial_price)
         
         Log("INFO", StringFormat("Luoi Stop lenh %s chi con %d. Bat dau Refill them %d lenh vao duoi.", EnumToString(type), current_count, fill_missing_count));
         
-        // Tim lenh co gia xa nhat
-        double furthest_price = 0;
-        int total_orders = OrdersTotal();
-        bool found = false;
-        
-        for(int i = 0; i < total_orders; i++)
-        {
-            ulong ticket = OrderGetTicket(i);
-            if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
-            {
-                ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
-                double price = OrderGetDouble(ORDER_PRICE_OPEN);
-                if(type == POSITION_TYPE_BUY && order_type == ORDER_TYPE_BUY_STOP)
-                {
-                    if(!found || price > furthest_price) { furthest_price = price; found = true; }
-                }
-                else if(type == POSITION_TYPE_SELL && order_type == ORDER_TYPE_SELL_STOP)
-                {
-                    if(!found || price < furthest_price) { furthest_price = price; found = true; }
-                }
-            }
-        }
+        // Tim lenh co gia xa nhat (su dung cache Phase 1)
+        double furthest_price = (type == POSITION_TYPE_BUY) ? g_furthest_buy_pending_price : g_furthest_sell_pending_price;
+        bool found = (furthest_price != 0);
         
         if(!found) {
-            furthest_price = initial_price; // Neu broker ngat ca lenh stop hoac mat
+            // Thay vi lay market price lam goc (initial_price), ta uu tien lay goc tu F3 neu co
+            string prefix = (type == POSITION_TYPE_BUY) ? "LastInitialBuyPrice_" : "LastInitialSellPrice_";
+            string f3_name = prefix + _Symbol + "_" + IntegerToString(inp_magic_number);
+            if(GlobalVariableCheck(f3_name) && GlobalVariableGet(f3_name) > 0)
+            {
+                furthest_price = GlobalVariableGet(f3_name); // Gia tri F3
+            }
+            else
+            {
+                furthest_price = initial_price; // Gia thi truong neu chua co Initial Trade nao trong F3
+            }
         }
         
         double lot = (type == POSITION_TYPE_BUY) ? inp_lot_dca_duong : inp_lot_dca_duong;
@@ -189,6 +150,126 @@ void RefillStopOrdersIfNeeded(ENUM_POSITION_TYPE type, double initial_price)
             {
                 target_price = furthest_price - i * dist_points;
                 trade.SellStop(lot, target_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+            }
+        }
+    }
+}
+
+// Thuat toan Healing (Va gap trong luoi gia DCA duong)
+void HealGridGaps(PositionInfo &positions[], PendingInfo &pending_orders[])
+{
+    if(!inp_enable_pending_mode) return;
+    
+    // Throttling: 5 seconds
+    ulong current_time = GetTickCount();
+    if(current_time - g_last_heal_check_time < 5000) return;
+    g_last_heal_check_time = current_time;
+
+    int pos_total = ArraySize(positions);
+    int pend_total = ArraySize(pending_orders);
+    
+    for(int side = 0; side < 2; side++)
+    {
+        ENUM_POSITION_TYPE current_type = (side == 0) ? POSITION_TYPE_BUY : POSITION_TYPE_SELL;
+        double price_list[];
+        int price_count = 0;
+
+        // --- BUOC 0: LAY GIA KHOI DIEM TU F3 DE GIU GOC GRID ---
+        string prefix = (current_type == POSITION_TYPE_BUY) ? "LastInitialBuyPrice_" : "LastInitialSellPrice_";
+        string f3_name = prefix + _Symbol + "_" + IntegerToString(inp_magic_number);
+        if(GlobalVariableCheck(f3_name))
+        {
+            double f3_price = GlobalVariableGet(f3_name);
+            if(f3_price > 0)
+            {
+               ArrayResize(price_list, price_count + 1);
+               price_list[price_count] = f3_price;
+               price_count++;
+            }
+        }
+        
+        // 1. Gom Position
+        for(int i = 0; i < pos_total; i++)
+        {
+            if(positions[i].type == current_type)
+            {
+                if(StringFind(positions[i].comment, "DCA DUONG") != -1 || StringFind(positions[i].comment, "Initial") != -1)
+                {
+                    ArrayResize(price_list, price_count + 1);
+                    price_list[price_count] = positions[i].open_price;
+                    price_count++;
+                }
+            }
+        }
+        
+        // 2. Gom Pending
+        for(int i = 0; i < pend_total; i++)
+        {
+            if(pending_orders[i].position_type == current_type)
+            {
+                if(StringFind(pending_orders[i].comment, "DCA DUONG") != -1)
+                {
+                    ArrayResize(price_list, price_count + 1);
+                    price_list[price_count] = pending_orders[i].open_price;
+                    price_count++;
+                }
+            }
+        }
+        
+        if(price_count < 2) continue; // Khong du luoi
+        
+        // 3. Sort ascending
+        ArraySort(price_list);
+        
+        double dist_points = (double)PipToPoints(inp_dca_duong_distance_pips) * _Point;
+        // Dung sai kiem tra Gap: > 1.5 * dist
+        double gap_threshold = dist_points * 1.5; 
+        
+        // 4. Kiem tra gap
+        for(int i = 0; i < price_count - 1; i++)
+        {
+            double diff = price_list[i+1] - price_list[i];
+            if(diff > gap_threshold)
+            {
+                int missing_slots = (int)MathFloor(diff / dist_points);
+                for(int m = 1; m <= missing_slots; m++)
+                {
+                    double missing_price = price_list[i] + m * dist_points;
+                    
+                    // Xac nhan khoang cach thuc su con lai voi mep tren (tranh trung lep qua sat)
+                    if((price_list[i+1] - missing_price) < (dist_points * 0.5)) continue;
+                    
+                    double lot_limit = (current_type == POSITION_TYPE_BUY) ? inp_lot_dca_duong : inp_lot_dca_duong;
+                    double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+                    double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+                    
+                    if(current_type == POSITION_TYPE_BUY)
+                    {
+                        if(current_ask < missing_price)
+                        {
+                            trade.BuyStop(lot_limit, missing_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+                            Log("INFO", StringFormat("Heal Grid Gap: Dat Buy Stop bu lo hong tai gia %f", missing_price));
+                        }
+                        else
+                        {
+                            trade.BuyLimit(lot_limit, missing_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+                            Log("INFO", StringFormat("Heal Grid Gap: Dat Buy Limit bu lo hong tai gia %f", missing_price));
+                        }
+                    }
+                    else // SELL
+                    {
+                        if(current_bid > missing_price)
+                        {
+                            trade.SellStop(lot_limit, missing_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+                            Log("INFO", StringFormat("Heal Grid Gap: Dat Sell Stop bu lo hong tai gia %f", missing_price));
+                        }
+                        else
+                        {
+                            trade.SellLimit(lot_limit, missing_price, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+                            Log("INFO", StringFormat("Heal Grid Gap: Dat Sell Limit bu lo hong tai gia %f", missing_price));
+                        }
+                    }
+                }
             }
         }
     }
