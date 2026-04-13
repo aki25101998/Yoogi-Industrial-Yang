@@ -12,6 +12,35 @@ int CountPendingOrdersByType(ENUM_POSITION_TYPE type)
     return 0;
 }
 
+// Hàm suy ngược giá Initial từ lịch sử (trường hợp gắn EA vào giữa chừng khi Initial đã bị tỉa)
+double RecoverInitialPriceFromHistory(ENUM_POSITION_TYPE type)
+{
+    if(!HistorySelect(0, TimeCurrent())) return 0.0;
+    
+    int total_deals = HistoryDealsTotal();
+    string target_cmt = (type == POSITION_TYPE_BUY) ? "Initial Buy" : "Initial Sell";
+    
+    // Dùng vòng lặp ngược để tìm deal Initial gần nhất
+    for(int i = total_deals - 1; i >= 0; i--)
+    {
+        ulong ticket = HistoryDealGetTicket(i);
+        if(ticket > 0 && HistoryDealGetInteger(ticket, DEAL_MAGIC) == inp_magic_number && HistoryDealGetString(ticket, DEAL_SYMBOL) == _Symbol)
+        {
+            if(HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_IN)
+            {
+                string cmt = HistoryDealGetString(ticket, DEAL_COMMENT);
+                if(StringFind(cmt, target_cmt) != -1)
+                {
+                    double price = HistoryDealGetDouble(ticket, DEAL_PRICE);
+                    Log("INFO", StringFormat("SUY NGUOC LICH SU: Da phuc hoi gia %s la %.5f", target_cmt, price));
+                    return price;
+                }
+            }
+        }
+    }
+    return 0.0;
+}
+
 // Xóa tất cả các lệnh pending
 void DeleteAllPendingOrders()
 {
@@ -131,7 +160,17 @@ void RefillStopOrdersIfNeeded(ENUM_POSITION_TYPE type, double initial_price)
             }
             else
             {
-                furthest_price = initial_price; // Gia thi truong neu chua co Initial Trade nao trong F3
+                double recovered_price = RecoverInitialPriceFromHistory(type);
+                if(recovered_price > 0)
+                {
+                    GlobalVariableSet(f3_name, recovered_price);
+                    furthest_price = recovered_price;
+                }
+                else
+                {
+                    furthest_price = initial_price; // Gia thi truong neu chua co Initial Trade nao trong F3 (va ca history)
+                    GlobalVariableSet(f3_name, -1.0); // Danh dau de khoi tim lai lan sau neu hoan toan khong co
+                }
             }
         }
         
@@ -185,6 +224,22 @@ void HealGridGaps(PositionInfo &positions[], PendingInfo &pending_orders[])
                ArrayResize(price_list, price_count + 1);
                price_list[price_count] = f3_price;
                price_count++;
+            }
+        }
+        else
+        {
+            // NEW LOGIC: Suy nguoc he toa do neu F3 bi mat
+            double recovered_price = RecoverInitialPriceFromHistory(current_type);
+            if(recovered_price > 0)
+            {
+               GlobalVariableSet(f3_name, recovered_price);
+               ArrayResize(price_list, price_count + 1);
+               price_list[price_count] = recovered_price;
+               price_count++;
+            }
+            else 
+            {
+               GlobalVariableSet(f3_name, -1.0); // set -1 de khong scan lich su nua neu thuc su k co
             }
         }
         
