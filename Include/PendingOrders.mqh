@@ -15,12 +15,28 @@ int CountPendingOrdersByType(ENUM_POSITION_TYPE type)
 // Hàm suy ngược giá Initial từ lịch sử (trường hợp gắn EA vào giữa chừng khi Initial đã bị tỉa)
 double RecoverInitialPriceFromHistory(ENUM_POSITION_TYPE type)
 {
+    // B1: Tìm thời gian mở của lệnh cổ nhất ĐANG TỒN TẠI của chu kỳ hiện tại
+    datetime oldest_open_time = 0;
+    int total_pos = PositionsTotal();
+    for(int i = 0; i < total_pos; i++)
+    {
+        ulong pos_ticket = PositionGetTicket(i);
+        if(pos_ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol && PositionGetInteger(POSITION_MAGIC) == inp_magic_number)
+        {
+            if((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == type)
+            {
+               datetime t = (datetime)PositionGetInteger(POSITION_TIME);
+               if(oldest_open_time == 0 || t < oldest_open_time) oldest_open_time = t;
+            }
+        }
+    }
+
     if(!HistorySelect(0, TimeCurrent())) return 0.0;
     
     int total_deals = HistoryDealsTotal();
     string target_cmt = (type == POSITION_TYPE_BUY) ? "Initial Buy" : "Initial Sell";
     
-    // Dùng vòng lặp ngược để tìm deal Initial gần nhất
+    // B2: Dùng vòng lặp ngược để tìm deal Initial gần nhất
     for(int i = total_deals - 1; i >= 0; i--)
     {
         ulong ticket = HistoryDealGetTicket(i);
@@ -31,6 +47,29 @@ double RecoverInitialPriceFromHistory(ENUM_POSITION_TYPE type)
                 string cmt = HistoryDealGetString(ticket, DEAL_COMMENT);
                 if(StringFind(cmt, target_cmt) != -1)
                 {
+                    // Lớp rào chắn: Kiểm tra xem lệnh Initial này có thuộc về chu kỳ cũ không?
+                    long pos_id = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+                    datetime close_time = 0;
+                    
+                    // Tìm thời điểm đóng của lệnh Initial này
+                    for(int k = total_deals - 1; k >= 0; k--)
+                    {
+                        ulong out_ticket = HistoryDealGetTicket(k);
+                        if(HistoryDealGetInteger(out_ticket, DEAL_POSITION_ID) == pos_id && HistoryDealGetInteger(out_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+                        {
+                            close_time = (datetime)HistoryDealGetInteger(out_ticket, DEAL_TIME);
+                            break;
+                        }
+                    }
+                    
+                    // Nếu thời điểm đóng của Initial này diễn ra TRƯỚC khi lệnh cũ nhất của chu kỳ hiện tại được mở
+                    // -> Nó chắc chắn thuộc về chu kỳ cũ đã kết thúc. Không được sử dụng!
+                    if(oldest_open_time > 0 && close_time > 0 && close_time < oldest_open_time)
+                    {
+                        Log("INFO", StringFormat("SUY NGUOC LICH SU: Phat hien %s thuoc chu ky cu (CloseTime %s < OldestOpenTime %s). Bo qua!", target_cmt, TimeToString(close_time), TimeToString(oldest_open_time)));
+                        return 0.0; 
+                    }
+                
                     double price = HistoryDealGetDouble(ticket, DEAL_PRICE);
                     Log("INFO", StringFormat("SUY NGUOC LICH SU: Da phuc hoi gia %s la %.5f", target_cmt, price));
                     return price;
