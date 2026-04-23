@@ -499,3 +499,58 @@ void HealGridGaps(PositionInfo &positions[], PendingInfo &pending_orders[])
         }
     }
 }
+
+// Dong bo hoa khoi luong cua lenh Pending voi thong so Lot hien tai
+void SyncPendingVolume()
+{
+    if(!inp_enable_pending_mode) return;
+    
+    // Throttling: 3 seconds
+    ulong current_time = GetTickCount();
+    if(current_time - g_last_sync_vol_time < 3000) return;
+    g_last_sync_vol_time = current_time;
+
+    int total_orders = OrdersTotal();
+    for(int i = total_orders - 1; i >= 0; i--)
+    {
+        ulong ticket = OrderGetTicket(i);
+        if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
+        {
+            ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+            double current_vol = OrderGetDouble(ORDER_VOLUME_INITIAL);
+            double target_vol = 0;
+            
+            if(order_type == ORDER_TYPE_BUY_STOP || order_type == ORDER_TYPE_BUY_LIMIT)
+            {
+                target_vol = inp_lot_dca_duong; 
+            }
+            else if(order_type == ORDER_TYPE_SELL_STOP || order_type == ORDER_TYPE_SELL_LIMIT)
+            {
+                target_vol = inp_lot_dca_duong; // Both sides use inp_lot_dca_duong for Pending Orders (DCA DUONG)
+            }
+            
+            // Neu sai lech khoi luong > 0.001
+            if(target_vol > 0 && MathAbs(current_vol - target_vol) > 0.001)
+            {
+                double price = OrderGetDouble(ORDER_PRICE_OPEN);
+                string comment = OrderGetString(ORDER_COMMENT);
+                
+                Log("INFO", StringFormat("Phat hien lenh Pending #%I64u sai Lot (Hien tai: %.2f, Muc tieu: %.2f). Tien hanh cap nhat bang cach Xoa va Dat lai...", ticket, current_vol, target_vol));
+                
+                // Thu xoa lenh
+                if(trade.OrderDelete(ticket))
+                {
+                    // Dat lai lenh moi cung vi tri
+                    if(order_type == ORDER_TYPE_BUY_STOP) trade.BuyStop(target_vol, price, _Symbol, 0, 0, ORDER_TIME_GTC, 0, comment);
+                    else if(order_type == ORDER_TYPE_BUY_LIMIT) trade.BuyLimit(target_vol, price, _Symbol, 0, 0, ORDER_TIME_GTC, 0, comment);
+                    else if(order_type == ORDER_TYPE_SELL_STOP) trade.SellStop(target_vol, price, _Symbol, 0, 0, ORDER_TIME_GTC, 0, comment);
+                    else if(order_type == ORDER_TYPE_SELL_LIMIT) trade.SellLimit(target_vol, price, _Symbol, 0, 0, ORDER_TIME_GTC, 0, comment);
+                }
+                else
+                {
+                    Log("ERROR", StringFormat("Khong the xoa lenh Pending #%I64u de cap nhat Lot. Loi: %d", ticket, trade.ResultRetcode()));
+                }
+            }
+        }
+    }
+}

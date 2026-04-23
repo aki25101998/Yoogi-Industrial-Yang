@@ -517,6 +517,7 @@ if(IsNewBar())
 
     // --- CC LOGIC CH?Y M?I TICK ---
     CleanRedundantPendingOrders(); // Dọn rác lệnh chờ nếu đã có vị trí đè lên
+    SyncPendingVolume();           // Đồng bộ Lot của lệnh Pending với Input hiện tại
     HealGridGaps(positions, g_pending_orders);
     UpdateDynamicBaseLot(positions);
     

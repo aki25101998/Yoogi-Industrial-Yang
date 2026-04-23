@@ -175,6 +175,7 @@ int      g_total_sell_pending = 0;
 double   g_furthest_buy_pending_price = 0;
 double   g_furthest_sell_pending_price = 0;
 ulong    g_last_heal_check_time = 0;
+ulong    g_last_sync_vol_time = 0;
 
 //--- BI?N TOÀN C?C (H? th?ng S? Sách K? Toán) ---
 double   g_safe_day = 0.0;
@@ -254,6 +255,7 @@ void InitializeGlobalVariables()
    g_furthest_buy_pending_price = 0;
    g_furthest_sell_pending_price = 0;
    g_last_heal_check_time = 0;
+   g_last_sync_vol_time = 0;
 
    // Kh?i t?o các bi?n s? sách
    g_safe_day = 0.0;
