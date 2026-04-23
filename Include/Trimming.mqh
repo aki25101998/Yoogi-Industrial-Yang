@@ -563,6 +563,7 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
 //+------------------------------------------------------------------+
 bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   if(!inp_use_trimming) return false;
    // Buoc 1: Tim lenh DCA DUONG bi lo cu nhat
    ulong patient_ticket = 0;
    double patient_profit = 0;
@@ -709,6 +710,7 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
 //+------------------------------------------------------------------+
 bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   if(!inp_use_trimming) return false;
    // Buoc 1: Tim lenh Initial bi lo cu nhat
    ulong patient_ticket = 0;
    double patient_profit = 0;
@@ -855,6 +857,7 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
 //+------------------------------------------------------------------+
 bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   if(!inp_use_trimming) return false;
    // Buoc 1: Tim lenh DCA AM bi lo cu nhat
    ulong patient_ticket = 0;
    double patient_profit = 0;
@@ -1139,6 +1142,7 @@ bool ExecuteRescueTrim(
 //+------------------------------------------------------------------+
 bool AttemptRescueTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   if(!inp_use_trimming) return false;
    return ExecuteRescueTrim(p_type, "DCA DUONG", "DCA_DUONG", positions);
 }
 
@@ -1147,6 +1151,7 @@ bool AttemptRescueTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &po
 //+------------------------------------------------------------------+
 bool AttemptRescueTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   if(!inp_use_trimming) return false;
    return ExecuteRescueTrim(p_type, "Initial", "INITIAL", positions);
 }
 
@@ -1155,6 +1160,7 @@ bool AttemptRescueTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &pos
 //+------------------------------------------------------------------+
 bool AttemptRescueTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   if(!inp_use_trimming) return false;
    return ExecuteRescueTrim(p_type, "DCA AM", "DCA_AM", positions);
 }
 

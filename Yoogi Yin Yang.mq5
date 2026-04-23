@@ -511,11 +511,12 @@ if(IsNewBar())
     } // <<< K?T TH�C KH?I "B? N�O" M?I (if/else if/else)
 }
 // ================================================================= //
-//                      H?T KH?I B? N�O                              //
+//                      H?T KH?I B? NO                              //
 // ================================================================= //
 
 
-    // --- C�C LOGIC CH?Y M?I TICK ---
+    // --- CC LOGIC CH?Y M?I TICK ---
+    CleanRedundantPendingOrders(); // Dọn rác lệnh chờ nếu đã có vị trí đè lên
     HealGridGaps(positions, g_pending_orders);
     UpdateDynamicBaseLot(positions);
     
@@ -686,7 +687,7 @@ if(IsNewBar())
     }
 
     // --- Phe BUY ---
-    if(allow_buy_trim && 
+    if(inp_use_trimming && allow_buy_trim && 
        ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_buy_pos >= inp_trim_trigger_level) ||
        (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
     {
@@ -773,7 +774,7 @@ if(IsNewBar())
     }
     
     // --- Phe SELL ---
-    if(allow_sell_trim && 
+    if(inp_use_trimming && allow_sell_trim && 
        ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_sell_pos >= inp_trim_trigger_level) ||
        (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
     {

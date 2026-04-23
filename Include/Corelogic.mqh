@@ -4,6 +4,10 @@
 //|                 (Phin b?n 41.3 - Fix Syntax Error Switch-Case) |
 //+------------------------------------------------------------------+
 
+// Forward declaration
+bool HasPendingNearPrice(ENUM_POSITION_TYPE type, double target_price);
+
+//+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
 //| KI?M TRA XEM L?NH CAN B?NG LOT CO DU?C PHP TRONG VUNG GIA KHONG   |
 //+------------------------------------------------------------------+
@@ -240,7 +244,14 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
       if(g_is_buy_locked_by_ema) return; 
 
       if(!IsBalanceOrderAllowedInZone(POSITION_TYPE_BUY, positions)) return;
-      if(inp_enable_pending_mode) return;
+      
+      // HYBRID GUARD: Tranh trung vao lenh pending
+      if(inp_enable_pending_mode)
+      {
+         double target_price = hp + (double)PipToPoints(g_current_dca_duong_distance)*_Point;
+         if(HasPendingNearPrice(POSITION_TYPE_BUY, target_price)) return;
+      }
+      
       if(!trade.Buy(g_current_base_lot_buy,_Symbol,0,0,0,"DCA DUONG")) Log("ERROR",StringFormat("Loi mo lenh DCA DUONG BUY. Ma loi: %d", (int)trade.ResultRetcode()));
    }
 
@@ -302,7 +313,14 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
       if(g_is_sell_locked_by_ema) return;
 
       if(!IsBalanceOrderAllowedInZone(POSITION_TYPE_SELL, positions)) return;
-      if(inp_enable_pending_mode) return;
+      
+      // HYBRID GUARD: Tranh trung vao lenh pending
+      if(inp_enable_pending_mode)
+      {
+         double target_price = lp - (double)PipToPoints(g_current_dca_duong_distance)*_Point;
+         if(HasPendingNearPrice(POSITION_TYPE_SELL, target_price)) return;
+      }
+      
       if(!trade.Sell(g_current_base_lot_sell,_Symbol,0,0,0,"DCA DUONG")) Log("ERROR",StringFormat("Loi mo lenh DCA DUONG SELL. Ma loi: %d", (int)trade.ResultRetcode()));
    }
    
@@ -337,49 +355,56 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
 
 void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
 {
+   bool need_recycle_buy = false;
+   double initial_buy_ask = 0;
+   bool need_recycle_sell = false;
+   double initial_sell_bid = 0;
+
    // --- Xu ly mo lenh Initial BUY ---
    if(inp_enable_buy && total_buy_pos == 0 && !g_is_buy_locked)
    {
-      if(inp_withdrawal_mode)
-      {
-         Log("INFO", "Che do Rut tien: Da chan mo lenh Initial Buy moi.");
-      }
-      else
-      {
-         g_last_buy_dca_am_group_index = -1;
-         DeletePendingOrdersByType(POSITION_TYPE_BUY);
-         Log("INFO","--- CHU TRINH BUY MOI ---");
-         double t=0;
-         if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_ASK)+(double)PipToPoints(inp_initial_tp_pips)*_Point;}
-         if(trade.Buy(g_current_base_lot_buy,_Symbol,0.0,0.0,t,"Initial Buy")) { 
-            double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-            PlaceInitialStopOrders(POSITION_TYPE_BUY, current_ask); 
-            GlobalVariableSet("LastInitialBuyPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), current_ask);
-         } else Log("ERROR",StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
-      }
+       if(inp_withdrawal_mode)
+       {
+          Log("INFO", "Che do Rut tien: Da chan mo lenh Initial Buy moi.");
+       }
+       else
+       {
+          g_last_buy_dca_am_group_index = -1;
+          Log("INFO","--- CHU TRINH BUY MOI ---");
+          double t=0;
+          if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_ASK)+(double)PipToPoints(inp_initial_tp_pips)*_Point;}
+          if(trade.Buy(g_current_base_lot_buy,_Symbol,0.0,0.0,t,"Initial Buy")) { 
+             initial_buy_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+             need_recycle_buy = true;
+             GlobalVariableSet("LastInitialBuyPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), initial_buy_ask);
+          } else Log("ERROR",StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
+       }
    }
 
    // --- Xu ly mo lenh Initial SELL ---
    if(inp_enable_sell && total_sell_pos == 0 && !g_is_sell_locked)
    {
-      if(inp_withdrawal_mode)
-      {
-         Log("INFO", "Che do Rut tien: Da chan mo lenh Initial Sell moi.");
-      }
-      else
-      {
-         g_last_sell_dca_am_group_index = -1;
-         DeletePendingOrdersByType(POSITION_TYPE_SELL);
-         Log("INFO","--- CHU TRINH SELL MOI ---");
-         double t=0;
-         if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_BID)-(double)PipToPoints(inp_initial_tp_pips)*_Point;}
-         if(trade.Sell(g_current_base_lot_sell,_Symbol,0.0,0.0,t,"Initial Sell")) { 
-            double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-            PlaceInitialStopOrders(POSITION_TYPE_SELL, current_bid); 
-            GlobalVariableSet("LastInitialSellPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), current_bid);
-         } else Log("ERROR",StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
-      }
+       if(inp_withdrawal_mode)
+       {
+          Log("INFO", "Che do Rut tien: Da chan mo lenh Initial Sell moi.");
+       }
+       else
+       {
+          g_last_sell_dca_am_group_index = -1;
+          Log("INFO","--- CHU TRINH SELL MOI ---");
+          double t=0;
+          if(inp_initial_tp_pips>0){t=SymbolInfoDouble(_Symbol,SYMBOL_BID)-(double)PipToPoints(inp_initial_tp_pips)*_Point;}
+          if(trade.Sell(g_current_base_lot_sell,_Symbol,0.0,0.0,t,"Initial Sell")) { 
+             initial_sell_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+             need_recycle_sell = true;
+             GlobalVariableSet("LastInitialSellPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), initial_sell_bid);
+          } else Log("ERROR",StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d",(int)trade.ResultRetcode()));
+       }
    }
+   
+   // --- Xu ly Recycle sau khi ca 2 lenh Market da duoc an toan khop vao thi truong ---
+   if(need_recycle_buy) RecyclePendingOrders(POSITION_TYPE_BUY, initial_buy_ask);
+   if(need_recycle_sell) RecyclePendingOrders(POSITION_TYPE_SELL, initial_sell_bid);
 }
 
 //+------------------------------------------------------------------+
@@ -656,21 +681,53 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
 
 void CloseAllPositionsByEA(const PositionInfo &positions[])
 {
-   DeleteAllPendingOrders();
    Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Bat dau dong tat ca %d lenh...", inp_take_profit_usd, ArraySize(positions)));
-   g_last_close_reason = CR_TACTICAL;
-   int failed_closes = 0;
+   
+   // Tinh tong profit tung phe de uu tien dong Phe Lo truoc
+   double total_buy_profit = 0.0;
+   double total_sell_profit = 0.0;
    for(int i = 0; i < ArraySize(positions); i++)
    {
-      g_last_close_reason = CR_TACTICAL;
-      AddTacticalClose(positions[i].ticket); // <<< FIX BUG 1 >>>
-      if(!trade.PositionClose(positions[i].ticket)) {
-         Log("ERROR", StringFormat("TP USD: L?i khi dng l?nh #%I64u. Ma l?i: %d", positions[i].ticket, (int)trade.ResultRetcode()));
-         failed_closes++;
+       if(positions[i].type == POSITION_TYPE_BUY) total_buy_profit += positions[i].profit_swap;
+       else if(positions[i].type == POSITION_TYPE_SELL) total_sell_profit += positions[i].profit_swap;
+   }
+   
+   ENUM_POSITION_TYPE losing_side = (total_buy_profit < total_sell_profit) ? POSITION_TYPE_BUY : POSITION_TYPE_SELL;
+   ENUM_POSITION_TYPE winning_side = (total_buy_profit < total_sell_profit) ? POSITION_TYPE_SELL : POSITION_TYPE_BUY;
+
+   g_last_close_reason = CR_TACTICAL;
+   int failed_closes = 0;
+   
+   // 1. Dong Phe Lo truoc de khoa rui ro truot gia
+   for(int i = 0; i < ArraySize(positions); i++)
+   {
+      if(positions[i].type == losing_side)
+      {
+          g_last_close_reason = CR_TACTICAL;
+          AddTacticalClose(positions[i].ticket);
+          if(!trade.PositionClose(positions[i].ticket)) {
+             Log("ERROR", StringFormat("TP USD: Loi khi dong lenh LO #%I64u. Ma loi: %d", positions[i].ticket, (int)trade.ResultRetcode()));
+             failed_closes++;
+          }
       }
    }
-   if(failed_closes == 0) Log("INFO", "TP USD: Da dng thnh cng t?t c? cc l?nh.");
-   else Log("WARNING", StringFormat("TP USD: Hon t?t, nhung c %d l?nh khng th? dng.", failed_closes));
+   
+   // 2. Dong Phe Lai sau
+   for(int i = 0; i < ArraySize(positions); i++)
+   {
+      if(positions[i].type == winning_side)
+      {
+          g_last_close_reason = CR_TACTICAL;
+          AddTacticalClose(positions[i].ticket);
+          if(!trade.PositionClose(positions[i].ticket)) {
+             Log("ERROR", StringFormat("TP USD: Loi khi dong lenh LOI #%I64u. Ma loi: %d", positions[i].ticket, (int)trade.ResultRetcode()));
+             failed_closes++;
+          }
+      }
+   }
+   
+   if(failed_closes == 0) Log("INFO", "TP USD: Da dong thanh cong tat ca cac lenh (Uu tien Loe truoc -> Lai sau).");
+   else Log("WARNING", StringFormat("TP USD: Hoan tat, nhung co %d lenh khong the dong.", failed_closes));
 }
 
 // <<< CAP NH?T: Ham luu ngan sach vao Global Variables >>>
