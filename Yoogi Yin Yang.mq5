@@ -295,7 +295,7 @@ void OnTick()
 // ================================================================= //
     if(inp_take_profit_usd > 0)
     {
-        double total_ea_profit = g_fund_all + total_buy_profit + total_sell_profit;
+        double total_ea_profit = total_buy_profit + total_sell_profit; // Chi tinh P/L dang mo, KHONG tinh quy tia lenh
         if(total_ea_profit >= inp_take_profit_usd || g_is_closing_tp_usd)
         {
             if(!g_is_closing_tp_usd)
