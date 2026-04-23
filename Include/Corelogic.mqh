@@ -681,53 +681,93 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
 
 void CloseAllPositionsByEA(const PositionInfo &positions[])
 {
-   Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Bat dau dong tat ca %d lenh...", inp_take_profit_usd, ArraySize(positions)));
+   int total = ArraySize(positions);
+   Log("INFO", StringFormat("TP USD: Bat dau dong %d lenh (CloseBy + Async)...", total));
    
-   // Tinh tong profit tung phe de uu tien dong Phe Lo truoc
-   double total_buy_profit = 0.0;
-   double total_sell_profit = 0.0;
-   for(int i = 0; i < ArraySize(positions); i++)
-   {
-       if(positions[i].type == POSITION_TYPE_BUY) total_buy_profit += positions[i].profit_swap;
-       else if(positions[i].type == POSITION_TYPE_SELL) total_sell_profit += positions[i].profit_swap;
-   }
-   
-   ENUM_POSITION_TYPE losing_side = (total_buy_profit < total_sell_profit) ? POSITION_TYPE_BUY : POSITION_TYPE_SELL;
-   ENUM_POSITION_TYPE winning_side = (total_buy_profit < total_sell_profit) ? POSITION_TYPE_SELL : POSITION_TYPE_BUY;
-
    g_last_close_reason = CR_TACTICAL;
-   int failed_closes = 0;
+   int closeby_pairs = 0;
+   int async_sent = 0;
+   int failed = 0;
+
+   // ================================================================
+   // GIAI DOAN 1: CLOSEBY — Ghep cap Buy <-> Sell (0 slippage, 0 spread)
+   // Server chi lam phep tinh so sach, KHONG dua ra thi truong
+   // ================================================================
+   ulong buy_tickets[];
+   ulong sell_tickets[];
+   int buy_idx = 0, sell_idx = 0;
    
-   // 1. Dong Phe Lo truoc de khoa rui ro truot gia
-   for(int i = 0; i < ArraySize(positions); i++)
+   for(int i = 0; i < total; i++)
    {
-      if(positions[i].type == losing_side)
+      if(positions[i].type == POSITION_TYPE_BUY)
       {
-          g_last_close_reason = CR_TACTICAL;
-          AddTacticalClose(positions[i].ticket);
-          if(!trade.PositionClose(positions[i].ticket)) {
-             Log("ERROR", StringFormat("TP USD: Loi khi dong lenh LO #%I64u. Ma loi: %d", positions[i].ticket, (int)trade.ResultRetcode()));
-             failed_closes++;
-          }
+         ArrayResize(buy_tickets, buy_idx + 1);
+         buy_tickets[buy_idx++] = positions[i].ticket;
+      }
+      else if(positions[i].type == POSITION_TYPE_SELL)
+      {
+         ArrayResize(sell_tickets, sell_idx + 1);
+         sell_tickets[sell_idx++] = positions[i].ticket;
       }
    }
    
-   // 2. Dong Phe Lai sau
-   for(int i = 0; i < ArraySize(positions); i++)
+   int pairs = MathMin(buy_idx, sell_idx);
+   Log("INFO", StringFormat("GIAI DOAN 1: Tim duoc %d cap Buy-Sell de CloseBy (Buy=%d, Sell=%d).", pairs, buy_idx, sell_idx));
+   
+   for(int i = 0; i < pairs; i++)
    {
-      if(positions[i].type == winning_side)
+      g_last_close_reason = CR_TACTICAL;
+      AddTacticalClose(buy_tickets[i]);
+      AddTacticalClose(sell_tickets[i]);
+      
+      if(trade.PositionCloseBy(buy_tickets[i], sell_tickets[i]))
       {
-          g_last_close_reason = CR_TACTICAL;
-          AddTacticalClose(positions[i].ticket);
-          if(!trade.PositionClose(positions[i].ticket)) {
-             Log("ERROR", StringFormat("TP USD: Loi khi dong lenh LOI #%I64u. Ma loi: %d", positions[i].ticket, (int)trade.ResultRetcode()));
-             failed_closes++;
-          }
+         closeby_pairs++;
+      }
+      else
+      {
+         Log("WARNING", StringFormat("CloseBy Buy #%I64u vs Sell #%I64u that bai. Loi: %d. Se dong bang Async.", 
+             buy_tickets[i], sell_tickets[i], trade.ResultRetcode()));
       }
    }
    
-   if(failed_closes == 0) Log("INFO", "TP USD: Da dong thanh cong tat ca cac lenh (Uu tien Loe truoc -> Lai sau).");
-   else Log("WARNING", StringFormat("TP USD: Hoan tat, nhung co %d lenh khong the dong.", failed_closes));
+   if(closeby_pairs > 0)
+      Log("INFO", StringFormat("GIAI DOAN 1 HOAN TAT: CloseBy %d/%d cap (0 slippage, 0 spread).", closeby_pairs, pairs));
+   
+   // ================================================================
+   // GIAI DOAN 2: ASYNC — Ban nhanh tat ca lenh con lai cung luc
+   // Thay vi cho tung lenh (100ms x N), gui het trong <50ms
+   // ================================================================
+   trade.SetAsyncMode(true);
+   
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket > 0 && PositionSelectByTicket(ticket))
+      {
+         if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol)
+         {
+            g_last_close_reason = CR_TACTICAL;
+            AddTacticalClose(ticket);
+            if(trade.PositionClose(ticket))
+            {
+               async_sent++;
+            }
+            else
+            {
+               Log("ERROR", StringFormat("Async: Loi dong lenh #%I64u. Loi: %d", ticket, trade.ResultRetcode()));
+               failed++;
+            }
+         }
+      }
+   }
+   
+   // ================================================================
+   // GIAI DOAN 3: Tra ve che do Sync binh thuong
+   // ================================================================
+   trade.SetAsyncMode(false);
+   
+   Log("INFO", StringFormat("TP USD HOAN TAT: CloseBy=%d cap (0 slippage), Async=%d lenh, Loi=%d.", closeby_pairs, async_sent, failed));
 }
 
 // <<< CAP NH?T: Ham luu ngan sach vao Global Variables >>>
