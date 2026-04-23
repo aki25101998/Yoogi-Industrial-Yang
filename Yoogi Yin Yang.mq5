@@ -306,22 +306,26 @@ void OnTick()
             
             CloseAllPositionsByEA(positions);
             
-            // Kiem tra thu con lenh nao khong (open va pending)
+            // Kiem tra thu con lenh OPEN nao khong
             int remaining_open = CountPositions(POSITION_TYPE_BUY) + CountPositions(POSITION_TYPE_SELL);
-            int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
             
-            if(remaining_open == 0 && remaining_pending == 0)
+            if(remaining_open == 0)
             {
-               Log("INFO", "TP USD: Xoa thanh cong TAT CA lenh open va pending. Reset QUY ALL ve 0.0");
+               // Tat ca positions da dong xong. Reset quy va cho phep chu trinh moi bat dau.
+               // Cac lenh Pending (neu con) se duoc RecyclePendingOrders MODIFY lai gia
+               // khi lenh Initial moi duoc mo, thay vi xoa va dat lai tu dau.
+               int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
+               Log("INFO", StringFormat("TP USD: Da dong tat ca positions. Reset QUY ALL. Pending con lai: %d (se duoc Recycle).", remaining_pending));
                g_fund_all = 0.0;
                g_is_closing_tp_usd = false;
                SaveBudget();
+               // KHONG return o day - de EA tiep tuc chay CheckAndOpenInitialTrades + RecyclePendingOrders
             }
             else
             {
-               Log("WARNING", StringFormat("TP USD: Van con %d lenh mo, %d lenh pending. Se thu lai vao tick tiep theo.", remaining_open, remaining_pending));
+               Log("WARNING", StringFormat("TP USD: Van con %d lenh mo. Se thu lai vao tick tiep theo.", remaining_open));
+               return; // Chi return khi con lenh OPEN chua dong xong
             }
-            return; // Dừng ngay lập tức
         }
     }
 // ================================================================= //
