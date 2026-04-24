@@ -302,6 +302,9 @@ void OnTick()
             {
                Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Dang kich hoat xoa toan bo lenh...", inp_take_profit_usd));
                g_is_closing_tp_usd = true;
+               // Xoa tat ca pending orders NGAY LAP TUC de tranh chung kich hoat
+               // trong luc Async dang dong positions (co the mat vai tick)
+               DeleteAllPendingOrders();
             }
             
             CloseAllPositionsByEA(positions);
@@ -311,11 +314,11 @@ void OnTick()
             
             if(remaining_open == 0)
             {
-               // Tat ca positions da dong xong. Reset quy va cho phep chu trinh moi bat dau.
-               // Cac lenh Pending (neu con) se duoc RecyclePendingOrders MODIFY lai gia
-               // khi lenh Initial moi duoc mo, thay vi xoa va dat lai tu dau.
+               // Xoa TAT CA pending orders cu de tranh chung kich hoat trong luc chuyen chu ky
+               DeleteAllPendingOrders();
+               
                int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
-               Log("INFO", StringFormat("TP USD: Da dong tat ca positions. Reset QUY ALL. Pending con lai: %d (se duoc Recycle).", remaining_pending));
+               Log("INFO", StringFormat("TP USD: Da dong tat ca positions + xoa pending. Pending con: %d. Reset QUY ALL.", remaining_pending));
                g_fund_all = 0.0;
                g_is_closing_tp_usd = false;
                SaveBudget();
