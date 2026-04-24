@@ -139,44 +139,9 @@ void DeleteAllPendingOrders();
 
 void CloseAllPositions()
 {
-    Log("INFO", "Panel: Bat dau dong tat ca lenh (CloseBy + Async)...");
-    int closeby_pairs = 0;
+    Log("INFO", "Panel: Bat dau dong tat ca lenh (Async)...");
     int async_sent = 0;
     
-    // ========== GIAI DOAN 1: CLOSEBY ==========
-    ulong buy_tickets[];
-    ulong sell_tickets[];
-    int buy_idx = 0, sell_idx = 0;
-    
-    for(int i = PositionsTotal() - 1; i >= 0; i--)
-    {
-        ulong ticket = PositionGetTicket(i);
-        if(ticket > 0 && PositionSelectByTicket(ticket))
-        {
-            if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol)
-            {
-                if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-                {
-                    ArrayResize(buy_tickets, buy_idx + 1);
-                    buy_tickets[buy_idx++] = ticket;
-                }
-                else
-                {
-                    ArrayResize(sell_tickets, sell_idx + 1);
-                    sell_tickets[sell_idx++] = ticket;
-                }
-            }
-        }
-    }
-    
-    int pairs = MathMin(buy_idx, sell_idx);
-    for(int i = 0; i < pairs; i++)
-    {
-        if(trade.PositionCloseBy(buy_tickets[i], sell_tickets[i]))
-            closeby_pairs++;
-    }
-    
-    // ========== GIAI DOAN 2: ASYNC ==========
     trade.SetAsyncMode(true);
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
@@ -192,7 +157,7 @@ void CloseAllPositions()
     trade.SetAsyncMode(false);
     
     DeleteAllPendingOrders();
-    Log("INFO", StringFormat("Panel: CloseBy=%d cap, Async=%d lenh. Da xoa pending.", closeby_pairs, async_sent));
+    Log("INFO", StringFormat("Panel: Da gui dong %d lenh (Async). Da xoa pending.", async_sent));
 }
 
 void DeletePendingOrdersByType(ENUM_POSITION_TYPE type);
