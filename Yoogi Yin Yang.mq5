@@ -324,6 +324,10 @@ void OnTick()
             else
             {
                Log("WARNING", StringFormat("TP USD: Van con %d lenh mo. Se thu lai vao tick tiep theo.", remaining_open));
+               // Cap nhat display TRUOC khi return de tranh bi dong bang
+               UpdateDisplay(positions);
+               UpdateProfitDisplay();
+               ChartRedraw();
                return; // Chi return khi con lenh OPEN chua dong xong
             }
         }
