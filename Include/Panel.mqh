@@ -139,65 +139,106 @@ void DeleteAllPendingOrders();
 
 void CloseAllPositions()
 {
-    int closed_count = 0;
+    Log("INFO", "Panel: Bat dau dong tat ca lenh (CloseBy + Async)...");
+    int closeby_pairs = 0;
+    int async_sent = 0;
+    
+    // ========== GIAI DOAN 1: CLOSEBY ==========
+    ulong buy_tickets[];
+    ulong sell_tickets[];
+    int buy_idx = 0, sell_idx = 0;
+    
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if(PositionSelectByTicket(ticket))
+        if(ticket > 0 && PositionSelectByTicket(ticket))
         {
             if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol)
             {
-                if(trade.PositionClose(ticket)) { closed_count++; }
-                else { Log("ERROR", "Lỗi đóng lệnh #" + (string)ticket + ". Mã lỗi: " + (string)trade.ResultRetcode()); }
+                if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+                {
+                    ArrayResize(buy_tickets, buy_idx + 1);
+                    buy_tickets[buy_idx++] = ticket;
+                }
+                else
+                {
+                    ArrayResize(sell_tickets, sell_idx + 1);
+                    sell_tickets[sell_idx++] = ticket;
+                }
             }
         }
     }
+    
+    int pairs = MathMin(buy_idx, sell_idx);
+    for(int i = 0; i < pairs; i++)
+    {
+        if(trade.PositionCloseBy(buy_tickets[i], sell_tickets[i]))
+            closeby_pairs++;
+    }
+    
+    // ========== GIAI DOAN 2: ASYNC ==========
+    trade.SetAsyncMode(true);
+    for(int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if(ticket > 0 && PositionSelectByTicket(ticket))
+        {
+            if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol)
+            {
+                if(trade.PositionClose(ticket)) async_sent++;
+            }
+        }
+    }
+    trade.SetAsyncMode(false);
+    
     DeleteAllPendingOrders();
-    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh và xoá tất cả pending orders.");
+    Log("INFO", StringFormat("Panel: CloseBy=%d cap, Async=%d lenh. Da xoa pending.", closeby_pairs, async_sent));
 }
 
 void DeletePendingOrdersByType(ENUM_POSITION_TYPE type);
 
 void CloseBuyPositions()
 {
-    int closed_count = 0;
+    int async_sent = 0;
+    trade.SetAsyncMode(true);
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if(PositionSelectByTicket(ticket))
+        if(ticket > 0 && PositionSelectByTicket(ticket))
         {
             if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && 
                PositionGetString(POSITION_SYMBOL) == _Symbol && 
                PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
             {
-                if(trade.PositionClose(ticket)) { closed_count++; }
-                else { Log("ERROR", "Lỗi đóng lệnh BUY #" + (string)ticket + ". Mã lỗi: " + (string)trade.ResultRetcode()); }
+                if(trade.PositionClose(ticket)) async_sent++;
             }
         }
     }
+    trade.SetAsyncMode(false);
     DeletePendingOrdersByType(POSITION_TYPE_BUY);
-    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh BUY và xoá lệnh chờ BUY.");
+    Log("INFO", StringFormat("Panel: Da dong %d lenh BUY (Async) va xoa pending BUY.", async_sent));
 }
 
 void CloseSellPositions()
 {
-    int closed_count = 0;
+    int async_sent = 0;
+    trade.SetAsyncMode(true);
     for(int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if(PositionSelectByTicket(ticket))
+        if(ticket > 0 && PositionSelectByTicket(ticket))
         {
             if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number &&
                PositionGetString(POSITION_SYMBOL) == _Symbol &&
                PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
             {
-                if(trade.PositionClose(ticket)) { closed_count++; }
-                else { Log("ERROR", "Lỗi đóng lệnh SELL #" + (string)ticket + ". Mã lỗi: " + (string)trade.ResultRetcode()); }
+                if(trade.PositionClose(ticket)) async_sent++;
             }
         }
     }
+    trade.SetAsyncMode(false);
     DeletePendingOrdersByType(POSITION_TYPE_SELL);
-    Log("INFO", "Đã đóng thành công " + (string)closed_count + " lệnh SELL và xoá lệnh chờ SELL.");
+    Log("INFO", StringFormat("Panel: Da dong %d lenh SELL (Async) va xoa pending SELL.", async_sent));
 }
 //+------------------------------------------------------------------+
 
