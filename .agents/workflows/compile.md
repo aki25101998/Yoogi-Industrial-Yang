@@ -13,7 +13,7 @@ Remove-Item "d:\Project\yoogi yin yang\YoogiYY.log" -Force -ErrorAction Silently
 
 2. Compile EA:
 ```powershell
-Start-Process -FilePath "C:\Program Files\MetaTrader 5 EXNESS\MetaEditor64.exe" -ArgumentList '/compile:"d:\Project\yoogi yin yang\Yoogi Yin Yang.mq5"','/log:"d:\Project\yoogi yin yang\YoogiYY.log"','/inc:"C:\Users\Admin\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5"' -Wait -NoNewWindow
+Start-Process -FilePath "C:\Program Files\MetaTrader 5 EXNESS\MetaEditor64.exe" -ArgumentList '/compile:"d:\Project\yoogi yin yang\Yoogi Yin Yang.mq5"','/log:"d:\Project\yoogi yin yang\YoogiYY.log"','/inc:"C:\Users\aki25\AppData\Roaming\MetaQuotes\Terminal\53785E099C927DB68A545C249CDBCE06\MQL5"' -Wait -NoNewWindow
 ```
 
 3. Check compile result:

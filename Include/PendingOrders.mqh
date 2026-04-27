@@ -219,7 +219,7 @@ void RecyclePendingOrders(ENUM_POSITION_TYPE type, double initial_price)
         return;
     }
     
-    double lot = (type == POSITION_TYPE_BUY) ? inp_lot_dca_duong : inp_lot_dca_duong;
+    double lot = inp_lot_dca_duong;
     double dist_pips = inp_dca_duong_distance_pips;
     double dist_points = (double)PipToPoints(dist_pips) * _Point;
     
@@ -296,11 +296,7 @@ void RecyclePendingOrders(ENUM_POSITION_TYPE type, double initial_price)
     }
 }
 
-// Đặt Limit khi một lệnh bị tỉa ra
-void PlaceReplacementLimitOrder(ENUM_POSITION_TYPE type, double at_price)
-{
-    // Ham nay da duoc thay the bang tinh nang tu dong va (HealGridGaps)
-}
+// (Da xoa: PlaceReplacementLimitOrder - da duoc thay the boi HealGridGaps)
 
 // Refill (nhồi lệnh vào đuôi của Stop list)
 void RefillStopOrdersIfNeeded(ENUM_POSITION_TYPE type, double initial_price)
@@ -344,7 +340,7 @@ void RefillStopOrdersIfNeeded(ENUM_POSITION_TYPE type, double initial_price)
             }
         }
         
-        double lot = (type == POSITION_TYPE_BUY) ? inp_lot_dca_duong : inp_lot_dca_duong;
+        double lot = inp_lot_dca_duong;
         double dist_points = (double)PipToPoints(inp_dca_duong_distance_pips) * _Point;
 
         for(int i = 1; i <= fill_missing_count; i++)
@@ -464,7 +460,7 @@ void HealGridGaps(PositionInfo &positions[], PendingInfo &pending_orders[])
                     // Xac nhan khoang cach thuc su con lai voi mep tren (tranh trung lep qua sat)
                     if((price_list[i+1] - missing_price) < (dist_points * 0.5)) continue;
                     
-                    double lot_limit = (current_type == POSITION_TYPE_BUY) ? inp_lot_dca_duong : inp_lot_dca_duong;
+                    double lot_limit = inp_lot_dca_duong;
                     double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
                     double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
                     

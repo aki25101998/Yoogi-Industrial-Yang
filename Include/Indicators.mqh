@@ -10,7 +10,6 @@
 
 //--- Khai bao ham ---
 void UpdateEmaLockStatus();
-int CheckEmaReversal();
 void OnInitIndicators();
 
 //+------------------------------------------------------------------+
@@ -193,54 +192,4 @@ void UpdateEmaLockStatus()
    }
 }
 
-//+------------------------------------------------------------------+
-//| KIEM TRA DAO CHIEU XU HUONG (EMA CROSSOVER + ADX FILTER)         |
-//| Return 1: Cat len (Tang) | -1: Cat xuong (Giam) | 0: Khong cat   |
-//+------------------------------------------------------------------+
-int CheckEmaReversal()
-{
-   // --- 1. BO LOC ADX (GIU NGUYEN) ---
-   if(InpUseAdxFilter)
-   {
-      if(handle_adx == INVALID_HANDLE)
-      {
-         handle_adx = iADX(_Symbol, inp_ema_timeframe, InpAdxPeriod);
-         if(handle_adx == INVALID_HANDLE) return 0;
-      }
-
-      double adx_buffer[];
-      if(CopyBuffer(handle_adx, 0, 0, 2, adx_buffer) < 2) return 0;
-
-      double adx_value = adx_buffer[0]; // Shift 1
-
-      // Neu ADX <= Level -> Thi truong Sideway -> Bo qua tin hieu dao chieu
-      if(adx_value <= InpAdxLevel) return 0;
-   }
-
-   ENUM_TIMEFRAMES timeframe     = inp_ema_timeframe;
-   int               fast_period   = 20;
-   int               slow_period   = 89;
-
-   double fast_ema_buffer[], slow_ema_buffer[];
-
-   // Lay 3 nen: Shift 2, Shift 1, Shift 0. Ta dung Shift 2 va Shift 1.
-   if (CopyBuffer(iMA(_Symbol, timeframe, fast_period, 0, MODE_EMA, PRICE_CLOSE), 0, 0, 3, fast_ema_buffer) < 3 ||
-       CopyBuffer(iMA(_Symbol, timeframe, slow_period, 0, MODE_EMA, PRICE_CLOSE), 0, 0, 3, slow_ema_buffer) < 3)
-   {
-      return 0;
-   }
-
-   double fast_prev = fast_ema_buffer[0]; // Shift 2 (Nen cu hon)
-   double slow_prev = slow_ema_buffer[0];
-
-   double fast_curr = fast_ema_buffer[1]; // Shift 1 (Nen vua dong)
-   double slow_curr = slow_ema_buffer[1];
-
-   // Check CROSS UP (Tang): Truoc do (Shift 2) FAST <= SLOW, sau do (Shift 1) FAST > SLOW
-   if (fast_prev <= slow_prev && fast_curr > slow_curr) return 1;
-
-   // Check CROSS DOWN (Giam): Truoc do (Shift 2) FAST >= SLOW, sau do (Shift 1) FAST < SLOW
-   if (fast_prev >= slow_prev && fast_curr < slow_curr) return -1;
-
-   return 0;
-}
+// (Da xoa: CheckEmaReversal - khong duoc goi o dau trong codebase)

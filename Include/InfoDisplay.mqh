@@ -87,13 +87,13 @@ void CreateDisplay()
     
     // --- KHỐI DÒNG: DCA HÀNG Buy ---
     CreateLabel(INFO_PREFIX+"DcaHangBuy_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaHangBuy_Text", "Tổng lệnh DCA HÀNG Buy:", text_x, y, corner, font_size, c_hang);
+    CreateLabel(INFO_PREFIX+"DcaHangBuy_Text", "Tổng lệnh Initial Buy:", text_x, y, corner, font_size, c_hang);
     CreateLabel(INFO_PREFIX+"DcaHangBuy_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
     CreateLabel(INFO_PREFIX+"DcaHangBuy_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
 
     // --- KHỐI DÒNG: DCA HÀNG Sell ---
     CreateLabel(INFO_PREFIX+"DcaHangSell_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaHangSell_Text", "Tổng lệnh DCA HÀNG Sell:", text_x, y, corner, font_size, c_hang);
+    CreateLabel(INFO_PREFIX+"DcaHangSell_Text", "Tổng lệnh Initial Sell:", text_x, y, corner, font_size, c_hang);
     CreateLabel(INFO_PREFIX+"DcaHangSell_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
     CreateLabel(INFO_PREFIX+"DcaHangSell_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
     
@@ -193,17 +193,17 @@ void UpdateDisplay(const PositionInfo &positions[])
         }
         
         // --- Phân loại chi tiết theo comment ---
-        if(StringFind(positions[i].comment, "DCA DƯƠNG") != -1)
+        if(StringFind(positions[i].comment, "DCA DUONG") != -1)
         {
             if(positions[i].type == POSITION_TYPE_BUY) { dca_duong_buy_count++; dca_duong_buy_lots += positions[i].volume; dca_duong_buy_profit += positions[i].profit_swap; }
             else { dca_duong_sell_count++; dca_duong_sell_lots += positions[i].volume; dca_duong_sell_profit += positions[i].profit_swap; }
         }
-        else if(StringFind(positions[i].comment, "DCA ÂM") != -1)
+        else if(StringFind(positions[i].comment, "DCA AM") != -1)
         {
             if(positions[i].type == POSITION_TYPE_BUY) { dca_am_buy_count++; dca_am_buy_lots += positions[i].volume; dca_am_buy_profit += positions[i].profit_swap; }
             else { dca_am_sell_count++; dca_am_sell_lots += positions[i].volume; dca_am_sell_profit += positions[i].profit_swap; }
         }
-        else if(StringFind(positions[i].comment, "DCA HÀNG") != -1)
+        else if(StringFind(positions[i].comment, "Initial") != -1)
         {
             if(positions[i].type == POSITION_TYPE_BUY) { dca_hang_buy_count++; dca_hang_buy_lots += positions[i].volume; dca_hang_buy_profit += positions[i].profit_swap; }
             else { dca_hang_sell_count++; dca_hang_sell_lots += positions[i].volume; dca_hang_sell_profit += positions[i].profit_swap; }
