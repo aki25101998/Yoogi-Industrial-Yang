@@ -198,6 +198,10 @@ bool     g_sell_distance_triggered = false;  // SELL đã có lệnh đạt pip 
 
 bool     g_is_closing_tp_usd = false;        // Trang thai dang clear lenh do dat TP USD
 
+//--- BO DEM TP USD CYCLE LOG ---
+int      g_tp_usd_daily_count = 0;           // So lan TP USD trong ngay (reset moi ngay moi)
+string   g_tp_usd_last_date = "";            // Ngay cuoi cung ghi log (dd/mm/yyyy) de phat hien ngay moi
+
 // Bi?n theo dõi chu k? d? reset
 datetime g_last_known_day = 0;
 datetime g_last_known_week_start = 0;
@@ -502,7 +506,7 @@ int CountDcaAmPositions(ENUM_POSITION_TYPE type)
           ulong ticket = PositionGetTicket(i);
           if(PositionSelectByTicket(ticket))
              {
-              if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol && PositionGetInteger(POSITION_TYPE) == type && PositionGetString(POSITION_COMMENT) == "DCA ÂM")
+              if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol && PositionGetInteger(POSITION_TYPE) == type && PositionGetString(POSITION_COMMENT) == "DCA AM")
                  {
                   count++;
                  }
@@ -650,7 +654,7 @@ string PositionTypeToString(ENUM_POSITION_TYPE p_type)
 
 
 
-double GetLotSize_ForDCA_Am(int level, double base_lot) { if(!inp_enable_dca_am_xlot) return NormalizeLot(inp_lot_dca_am); return CalculateLot_ForDCA_Am(level); }
+double GetLotSize_ForDCA_Am(int level) { if(!inp_enable_dca_am_xlot) return NormalizeLot(inp_lot_dca_am); return CalculateLot_ForDCA_Am(level); }
 
 #endif
 

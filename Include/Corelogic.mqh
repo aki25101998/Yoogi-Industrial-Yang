@@ -233,8 +233,15 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
 
    if((ad||aa) && total_buy_pos==1){
        if(inp_initial_tp_pips>0){
-           double t=PositionGetDouble(POSITION_TP);
-           if(t>0)trade.PositionModify(positions[0].ticket,0,0);
+           for(int k=0; k<ArraySize(positions); k++){
+               if(positions[k].type == POSITION_TYPE_BUY){
+                   if(PositionSelectByTicket(positions[k].ticket)){
+                       double t=PositionGetDouble(POSITION_TP);
+                       if(t>0) trade.PositionModify(positions[k].ticket,0,0);
+                   }
+                   break;
+               }
+           }
        }
    }
 
@@ -269,7 +276,7 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, int 
 
       // Logic bổ sung DCA Am
       int next_level = pure_dca_am_buy_pos + 1;
-      double next_lot = GetLotSize_ForDCA_Am(next_level, g_current_base_lot_buy);
+      double next_lot = GetLotSize_ForDCA_Am(next_level);
 
       // DEBUG LOG - Xem giá trị đếm và lot
       Log("DEBUG", StringFormat("DCA AM BUY: pure_dca_am_buy_pos=%d, next_level=%d, next_lot=%.2f, group=%d", 
@@ -302,8 +309,15 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
    
    if((ad||aa) && total_sell_pos==1){
        if(inp_initial_tp_pips>0){
-           double t=PositionGetDouble(POSITION_TP);
-           if(t>0)trade.PositionModify(positions[0].ticket,0,0);
+           for(int k=0; k<ArraySize(positions); k++){
+               if(positions[k].type == POSITION_TYPE_SELL){
+                   if(PositionSelectByTicket(positions[k].ticket)){
+                       double t=PositionGetDouble(POSITION_TP);
+                       if(t>0) trade.PositionModify(positions[k].ticket,0,0);
+                   }
+                   break;
+               }
+           }
        }
    }
 
@@ -337,7 +351,7 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, in
       }
 
       int next_level = pure_dca_am_sell_pos + 1;
-      double next_lot = GetLotSize_ForDCA_Am(next_level, g_current_base_lot_sell);
+      double next_lot = GetLotSize_ForDCA_Am(next_level);
 
       // DEBUG LOG - Xem giá trị đếm và lot
       Log("DEBUG", StringFormat("DCA AM SELL: pure_dca_am_sell_pos=%d, next_level=%d, next_lot=%.2f, group=%d", 
@@ -677,6 +691,71 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
    }
    Log("INFO", StringFormat("So sach cap nhat: KSN=%.2f, NSN=%.2f | KST=%.2f, NST=%.2f", g_safe_day, g_budget_day, g_safe_week, g_budget_week));
    SaveBudget(); // <<< CAP NH?T: Luu ngay lap tuc
+}
+
+//+------------------------------------------------------------------+
+//| GHI LOG TP USD CLEAR VÀO FILE .TXT                                |
+//| Dùng TimeLocal() (giờ PC), phân nhóm theo ngày, reset STT mỗi ngày|
+//+------------------------------------------------------------------+
+void LogTpUsdClear()
+{
+   // Lấy thời gian PC (không phải server MT5)
+   datetime local_time = TimeLocal();
+   MqlDateTime dt;
+   TimeToStruct(local_time, dt);
+   
+   // Format ngày: dd/mm/yyyy
+   string date_str = StringFormat("%02d/%02d/%04d", dt.day, dt.mon, dt.year);
+   // Format giờ: HH:MM:SS
+   string time_str = StringFormat("%02d:%02d:%02d", dt.hour, dt.min, dt.sec);
+   
+   // Tên file: Yoogi_TP_USD_Log_XAUUSD_12345.txt
+   string filename = "Yoogi_TP_USD_Log_" + _Symbol + "_" + IntegerToString(inp_magic_number) + ".txt";
+   
+   // Kiểm tra ngày mới → reset bộ đếm
+   if(date_str != g_tp_usd_last_date)
+   {
+      g_tp_usd_daily_count = 0;
+      g_tp_usd_last_date = date_str;
+   }
+   
+   // Tăng bộ đếm
+   g_tp_usd_daily_count++;
+   
+   // Mở file (append mode)
+   int file_handle = FileOpen(filename, FILE_READ | FILE_WRITE | FILE_TXT | FILE_ANSI);
+   if(file_handle == INVALID_HANDLE)
+   {
+      Log("ERROR", "Khong the mo file log TP USD: " + filename + ". Loi: " + IntegerToString(GetLastError()));
+      return;
+   }
+   
+   // Kiểm tra file mới (rỗng) → ghi header
+   long file_size = FileSize(file_handle);
+   if(file_size == 0)
+   {
+      FileWriteString(file_handle, "==============================================\n");
+      FileWriteString(file_handle, "YOOGI YIN YANG - TP USD CLEAR LOG\n");
+      FileWriteString(file_handle, "Symbol: " + _Symbol + " | Magic: " + IntegerToString(inp_magic_number) + "\n");
+      FileWriteString(file_handle, "==============================================\n");
+   }
+   
+   // Di chuyển con trỏ về cuối file
+   FileSeek(file_handle, 0, SEEK_END);
+   
+   // Nếu là entry đầu tiên của ngày mới → ghi header ngày
+   if(g_tp_usd_daily_count == 1)
+   {
+      FileWriteString(file_handle, "\n--- " + date_str + " ---\n");
+   }
+   
+   // Ghi entry: #01 | 14:30:05
+   string entry = StringFormat("#%02d | %s\n", g_tp_usd_daily_count, time_str);
+   FileWriteString(file_handle, entry);
+   
+   FileClose(file_handle);
+   
+   Log("INFO", StringFormat("TP USD Log: Ghi thanh cong %s #%02d luc %s", date_str, g_tp_usd_daily_count, time_str));
 }
 
 void CloseAllPositionsByEA(const PositionInfo &positions[])

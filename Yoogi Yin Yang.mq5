@@ -127,8 +127,8 @@ void OnTick()
     ArrayResize(positions, total_positions_on_chart);
     int current_ea_pos_count = 0;
 
-    double highest_buy_price = 0, lowest_buy_price = 9999999;
-    double highest_sell_price = 0, lowest_sell_price = 9999999;
+    double highest_buy_price = 0, lowest_buy_price = DBL_MAX;
+    double highest_sell_price = 0, lowest_sell_price = DBL_MAX;
     int commentless_indices[];
     int commentless_count = 0;
 
@@ -235,7 +235,7 @@ void OnTick()
         }
         else
         {
-            if(lowest_sell_price == 9999999) inferred_comment = "Initial Sell";
+             if(lowest_sell_price == DBL_MAX) inferred_comment = "Initial Sell";
             else if(positions[index_to_fix].open_price < lowest_sell_price) inferred_comment = "DCA DUONG";
             else inferred_comment = "DCA AM";
         }
@@ -302,9 +302,6 @@ void OnTick()
             {
                Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Dang kich hoat xoa toan bo lenh...", inp_take_profit_usd));
                g_is_closing_tp_usd = true;
-               // Xoa tat ca pending orders NGAY LAP TUC de tranh chung kich hoat
-               // trong luc Async dang dong positions (co the mat vai tick)
-               DeleteAllPendingOrders();
             }
             
             CloseAllPositionsByEA(positions);
@@ -314,11 +311,12 @@ void OnTick()
             
             if(remaining_open == 0)
             {
-               // Xoa TAT CA pending orders cu de tranh chung kich hoat trong luc chuyen chu ky
-               DeleteAllPendingOrders();
-               
+               // Tat ca positions da dong xong. Reset quy va cho phep chu trinh moi bat dau.
+               // Cac lenh Pending (neu con) se duoc RecyclePendingOrders MODIFY lai gia
+               // khi lenh Initial moi duoc mo, thay vi xoa va dat lai tu dau.
                int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
-               Log("INFO", StringFormat("TP USD: Da dong tat ca positions + xoa pending. Pending con: %d. Reset QUY ALL.", remaining_pending));
+               Log("INFO", StringFormat("TP USD: Da dong tat ca positions. Reset QUY ALL. Pending con lai: %d (se duoc Recycle).", remaining_pending));
+               LogTpUsdClear(); // <<< GHI LOG TP USD CLEAR VAO FILE .TXT >>>
                g_fund_all = 0.0;
                g_is_closing_tp_usd = false;
                SaveBudget();
@@ -465,59 +463,10 @@ if(IsNewBar())
         // --- UU TI�n 2: X? l� tr?ng th�i B�NH THU?NG (kh�ng c� phe n�o b? kh�a) ---
         else
         {
-            // --- Logic cho phe BUY ---
-            if(total_buy_pos > 0)
-            {
-                // K?ch b?n 2.1: Phe BUY dang L? -> Lu�n uu ti�n t?a l?nh d? ph�ng th?
-                if(total_buy_profit < 0)
-                {
-                    if(inp_use_trimming)
-                    {
-                        AttemptSmartTrim(POSITION_TYPE_BUY, positions);
-                    }
-                }
-                // K?ch b?n 2.2: Phe BUY dang L�I
-                else
-                {
-                    // N?u B?T trailing -> Uu ti�n "G?ng L?i"
-                    if(inp_enable_group_trailing)
-                    {
-                        // ExecuteDcaAmGroupTrailing(positions, POSITION_TYPE_BUY);
-                    }
-                    // N?u T?T trailing -> Chuy?n sang ch? d? "An Ch?c M?c B?n", t?a l?nh d? ch?t l?i non
-                    else if(inp_use_trimming)
-                    {
-                        AttemptSmartTrim(POSITION_TYPE_BUY, positions);
-                    }
-                }
-            }
-            
-            // --- Logic cho phe SELL ---
-            if(total_sell_pos > 0)
-            {
-                // K?ch b?n 2.3: Phe SELL dang L? -> Lu�n uu ti�n t?a l?nh d? ph�ng th?
-                if(total_sell_profit < 0)
-                {
-                    if(inp_use_trimming)
-                    {
-                        AttemptSmartTrim(POSITION_TYPE_SELL, positions);
-                    }
-                }
-                // K?ch b?n 2.4: Phe SELL dang L�I
-                else
-                {
-                    // N?u B?T trailing -> Uu ti�n "G?ng L?i"
-                    if(inp_enable_group_trailing)
-                    {
-                        // ExecuteDcaAmGroupTrailing(positions, POSITION_TYPE_SELL);
-                    }
-                    // N?u T?T trailing -> Chuy?n sang ch? d? "An Ch?c M?c B?n", t?a l?nh d? ch?t l?i non
-                    else if(inp_use_trimming)
-                    {
-                        AttemptSmartTrim(POSITION_TYPE_SELL, positions);
-                    }
-                }
-            }
+            // --- UU TIEN 2: Trang thai BINH THUONG (khong co phe nao bi khoa) ---
+            // Logic tia lenh chi tiet (DCA DUONG -> Initial -> DCA AM) da duoc xu ly 
+            // boi khoi code phia duoi (dong 698+). Khong goi AttemptSmartTrim o day 
+            // de tranh tia lenh 2 lan trong cung 1 tick.
         }
     } // <<< K?T TH�C KH?I "B? N�O" M?I (if/else if/else)
 }
