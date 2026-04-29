@@ -388,23 +388,60 @@ void OnTick()
         if(total_buy_profit > 0 && total_sell_profit < 0 && allow_sell_trim)
         {
             // BUY đang lãi, SELL đang lỗ → BUY tỉa SELL
-            bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
-            bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
-            
-            if(has_dca_duong_loss)
+            // Kiểm tra trigger cho phe SELL (phe bị tỉa)
+            int sell_count_for_trigger = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_sell_pos;
+            if(inp_trim_trigger_mode != TRIM_BY_COUNT || sell_count_for_trigger >= inp_trim_trigger_level)
             {
-                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
-                else AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
-            }
-            else if(has_initial_loss)
-            {
-                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
-                else AttemptTrimInitial(POSITION_TYPE_SELL, positions);
+                bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
+                bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
+                
+                if(has_dca_duong_loss)
+                {
+                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
+                    else AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
+                }
+                else if(has_initial_loss)
+                {
+                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
+                    else AttemptTrimInitial(POSITION_TYPE_SELL, positions);
+                }
             }
         }
         else if(total_sell_profit > 0 && total_buy_profit < 0 && allow_buy_trim)
         {
             // SELL đang lãi, BUY đang lỗ → SELL tỉa BUY
+            // Kiểm tra trigger cho phe BUY (phe bị tỉa)
+            int buy_count_for_trigger = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_buy_pos;
+            if(inp_trim_trigger_mode != TRIM_BY_COUNT || buy_count_for_trigger >= inp_trim_trigger_level)
+            {
+                bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
+                bool has_initial_loss = HasLossOfType(POSITION_TYPE_BUY, "Initial", positions);
+                
+                if(has_dca_duong_loss)
+                {
+                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_BUY, positions);
+                    else AttemptTrimDcaDuong(POSITION_TYPE_BUY, positions);
+                }
+                else if(has_initial_loss)
+                {
+                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_BUY, positions);
+                    else AttemptTrimInitial(POSITION_TYPE_BUY, positions);
+                }
+            }
+        }
+    }
+
+    // ============================================================
+    // TỈA CÙNG CHIỀU (Same-side Trim) - CHỈ CHẠY KHI MODE SAME_SIDE
+    // ============================================================
+    if(inp_trim_mode == TRIM_MODE_SAME_SIDE)
+    {
+        // --- Phe BUY ---
+        int buy_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_buy_pos;
+        if(inp_use_trimming && allow_buy_trim && 
+           ((inp_trim_trigger_mode == TRIM_BY_COUNT && buy_trigger_count >= inp_trim_trigger_level) ||
+           (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
+        {
             bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
             bool has_initial_loss = HasLossOfType(POSITION_TYPE_BUY, "Initial", positions);
             
@@ -419,50 +456,26 @@ void OnTick()
                 else AttemptTrimInitial(POSITION_TYPE_BUY, positions);
             }
         }
-    }
-
-    // ============================================================
-    // TỈA CÙNG CHIỀU (Same-side Trim)
-    // ============================================================
-    // --- Phe BUY ---
-    int buy_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_buy_pos;
-    if(inp_use_trimming && allow_buy_trim && 
-       ((inp_trim_trigger_mode == TRIM_BY_COUNT && buy_trigger_count >= inp_trim_trigger_level) ||
-       (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
-    {
-        bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
-        bool has_initial_loss = HasLossOfType(POSITION_TYPE_BUY, "Initial", positions);
         
-        if(has_dca_duong_loss)
+        // --- Phe SELL ---
+        int sell_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_sell_pos;
+        if(inp_use_trimming && allow_sell_trim && 
+           ((inp_trim_trigger_mode == TRIM_BY_COUNT && sell_trigger_count >= inp_trim_trigger_level) ||
+           (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
         {
-            if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_BUY, positions);
-            else AttemptTrimDcaDuong(POSITION_TYPE_BUY, positions);
-        }
-        else if(has_initial_loss)
-        {
-            if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_BUY, positions);
-            else AttemptTrimInitial(POSITION_TYPE_BUY, positions);
-        }
-    }
-    
-    // --- Phe SELL ---
-    int sell_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_sell_pos;
-    if(inp_use_trimming && allow_sell_trim && 
-       ((inp_trim_trigger_mode == TRIM_BY_COUNT && sell_trigger_count >= inp_trim_trigger_level) ||
-       (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
-    {
-        bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
-        bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
-        
-        if(has_dca_duong_loss)
-        {
-            if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
-            else AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
-        }
-        else if(has_initial_loss)
-        {
-            if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
-            else AttemptTrimInitial(POSITION_TYPE_SELL, positions);
+            bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
+            bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
+            
+            if(has_dca_duong_loss)
+            {
+                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
+                else AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
+            }
+            else if(has_initial_loss)
+            {
+                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
+                else AttemptTrimInitial(POSITION_TYPE_SELL, positions);
+            }
         }
     }
     
