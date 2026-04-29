@@ -425,8 +425,9 @@ void OnTick()
     // TỈA CÙNG CHIỀU (Same-side Trim)
     // ============================================================
     // --- Phe BUY ---
+    int buy_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_buy_pos;
     if(inp_use_trimming && allow_buy_trim && 
-       ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_buy_pos >= inp_trim_trigger_level) ||
+       ((inp_trim_trigger_mode == TRIM_BY_COUNT && buy_trigger_count >= inp_trim_trigger_level) ||
        (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
     {
         bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
@@ -445,8 +446,9 @@ void OnTick()
     }
     
     // --- Phe SELL ---
+    int sell_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_sell_pos;
     if(inp_use_trimming && allow_sell_trim && 
-       ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_sell_pos >= inp_trim_trigger_level) ||
+       ((inp_trim_trigger_mode == TRIM_BY_COUNT && sell_trigger_count >= inp_trim_trigger_level) ||
        (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
     {
         bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
