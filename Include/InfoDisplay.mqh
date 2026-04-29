@@ -245,21 +245,6 @@ void UpdateDisplay(const PositionInfo &positions[])
         status_text = "ĐÃ TẠM DỪNG";
         status_color = clrRed;
     }
-    else if(g_is_buy_locked && g_is_sell_locked)
-    {
-        status_text = "CẢ 2 PHE BỊ KHÓA";
-        status_color = clrOrangeRed;
-    }
-    else if(g_is_buy_locked)
-    {
-        status_text = "PHE BUY BỊ KHÓA";
-        status_color = clrOrange;
-    }
-    else if(g_is_sell_locked)
-    {
-        status_text = "PHE SELL BỊ KHÓA";
-        status_color = clrOrange;
-    }
     else
     {
         status_text = "ĐANG HOẠT ĐỘNG";

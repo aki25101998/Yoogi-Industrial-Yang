@@ -27,10 +27,10 @@ bool MyPositionClosePartial(ulong ticket, double volume)
 double AttemptEmergencyTrim(string period_type, double budget, const PositionInfo &positions[]);
 bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]);
 bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]);
-bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]);
+// DCA Am trim functions removed (Industrial Yang)
 bool AttemptRescueTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]);
 bool AttemptRescueTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]);
-bool AttemptRescueTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]);
+// DCA Am rescue trim functions removed (Industrial Yang)
 bool HasLossOfType(ENUM_POSITION_TYPE p_type, string comment_type, const PositionInfo &positions[]);
 double GetPipDistanceFromEntry(const PositionInfo &pos);
 
@@ -851,152 +851,7 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
    return false; // Quy chua du, cho tich luy them
 }
 
-//+------------------------------------------------------------------+
-//| HAM TIA DCA AM (UU TIEN 3) - THEO QUY                            |
-//| <<< Them partial close khi quy khong du toan phan >>>            |
-//+------------------------------------------------------------------+
-bool AttemptTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
-{
-   if(!inp_use_trimming) return false;
-   // Buoc 1: Tim lenh DCA AM bi lo cu nhat
-   ulong patient_ticket = 0;
-   double patient_profit = 0;
-   double patient_volume = 0;
-   datetime oldest_time = D'3000.01.01';
-   
-   int dca_am_count = 0;
-   int dca_am_loss_count = 0;
-   
-   for(int i=0; i<ArraySize(positions); i++)
-   {
-      if(positions[i].type == p_type && StringFind(positions[i].comment, "DCA AM") != -1)
-      {
-         dca_am_count++;
-         if(positions[i].profit_swap < 0)
-         {
-            // BY_DISTANCE: chi xet lenh da di xa >= X pip
-            if(inp_trim_trigger_mode == TRIM_BY_DISTANCE)
-            {
-               if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
-            }
-            dca_am_loss_count++;
-            if(positions[i].open_time < oldest_time)
-            {
-               oldest_time = positions[i].open_time;
-               patient_ticket = positions[i].ticket;
-               patient_profit = positions[i].profit_swap;
-               patient_volume = positions[i].volume;
-            }
-         }
-      }
-   }
-   
-   // Neu khong co DCA AM nao bi lo -> return false
-   if(patient_ticket == 0)
-   {
-      return false;
-   }
-   
-   double patient_loss_amount = -patient_profit;
-   
-   // Buoc 2: Tinh tien can thiet
-   double needed = patient_loss_amount + inp_trim_target_profit;
-   
-   // Buoc 3: Kiem tra quy (CROSS_SIDE: dung quy doi dien)
-   double current_fund;
-   if(inp_take_profit_usd > 0) {
-      current_fund = g_fund_all;
-   } else {
-      if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_sell : g_fund_trim_buy;
-      else
-         current_fund = (p_type == POSITION_TYPE_BUY) ? g_fund_trim_buy : g_fund_trim_sell;
-   }
-   
-   if(current_fund >= needed)
-   {
-      // Quy du -> Thuc hien tia TOAN PHAN
-      g_last_close_reason = CR_TACTICAL;
-      
-      if(MyPositionClose(patient_ticket))
-      {
-         AddTacticalClose(patient_ticket);
-         if(inp_take_profit_usd == 0) {
-            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-            {
-               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
-            }
-            else
-            {
-               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
-            }
-         }
-         string fund_name = "ALL";
-         if(inp_take_profit_usd == 0) {
-            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
-         }
-         Log("INFO", StringFormat("TIA DCA AM QUY: Dong TOAN PHAN lenh #%I64u (lo %.2f). RESET Quy %s ve 0.", 
-             patient_ticket, patient_loss_amount, fund_name));
-         SaveBudget();
-         return true;
-      }
-      else
-      {
-         Log("ERROR", StringFormat("TIA DCA AM QUY: Loi dong lenh #%I64u. Ma loi: %d", 
-             patient_ticket, trade.ResultRetcode()));
-         return false;
-      }
-   }
-   
-   // --- Quy khong du toan phan -> thu tia MOT PHAN ---
-   {
-      double volume_to_close = NormalizeLot(patient_volume * (inp_trim_close_percentage / 100.0));
-      if(volume_to_close >= SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN) && volume_to_close < patient_volume)
-      {
-         double partial_loss = patient_loss_amount * (volume_to_close / patient_volume);
-         double needed_partial = partial_loss + inp_trim_target_profit;
-         
-         if(current_fund >= needed_partial)
-         {
-            g_last_close_reason = CR_TACTICAL;
-            if(MyPositionClosePartial(patient_ticket, volume_to_close))
-            {
-               AddTacticalClose(patient_ticket);
-               if(inp_take_profit_usd == 0) {
-            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-            {
-               if(p_type == POSITION_TYPE_BUY) g_fund_trim_sell = 0; else g_fund_trim_buy = 0;
-            }
-            else
-            {
-               if(p_type == POSITION_TYPE_BUY) g_fund_trim_buy = 0; else g_fund_trim_sell = 0;
-            }
-         }
-               string fund_name = "ALL";
-         if(inp_take_profit_usd == 0) {
-            fund_name = (inp_trim_mode == TRIM_MODE_CROSS_SIDE) ? 
-               ((p_type == POSITION_TYPE_BUY) ? "SELL(cheo)" : "BUY(cheo)") :
-               ((p_type == POSITION_TYPE_BUY) ? "BUY" : "SELL");
-         }
-               Log("INFO", StringFormat("TIA DCA AM QUY: Dong MOT PHAN (%.2f lot) lenh #%I64u. RESET Quy %s ve 0.", 
-                   volume_to_close, patient_ticket, fund_name));
-               SaveBudget();
-               return true;
-            }
-            else
-            {
-               Log("ERROR", StringFormat("TIA DCA AM QUY: Loi dong mot phan lenh #%I64u. Ma loi: %d", 
-                   patient_ticket, trade.ResultRetcode()));
-               return false;
-            }
-         }
-      }
-   }
-   
-   return false; // Quy chua du, cho tich luy them
-}
+// <<< DCA AM FUND TRIM: DA XOA (Industrial Yang) >>>
 
 
 //+------------------------------------------------------------------+
@@ -1155,12 +1010,5 @@ bool AttemptRescueTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &pos
    return ExecuteRescueTrim(p_type, "Initial", "INITIAL", positions);
 }
 
-//+------------------------------------------------------------------+
-//| RESCUE FUND: TIA DCA AM (UU TIEN 3)                               |
-//+------------------------------------------------------------------+
-bool AttemptRescueTrimDcaAm(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
-{
-   if(!inp_use_trimming) return false;
-   return ExecuteRescueTrim(p_type, "DCA AM", "DCA_AM", positions);
-}
+// <<< DCA AM RESCUE TRIM: DA XOA (Industrial Yang) >>>
 
