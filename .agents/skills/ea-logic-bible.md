@@ -184,6 +184,25 @@ Khi KHÔNG ai bị khoá     → KHÔNG tỉa ở đây (để code mỗi tick x
 - Logic tỉa khi bình thường được xử lý bởi code mỗi tick (dòng 650+)
 - Tuyệt đối không đặt AttemptSmartTrim vào nhánh else này
 
+### 5.6 Cơ chế Dispatch Tỉa Mặc Định (Mỗi Tick)
+
+EA hỗ trợ 2 chế độ tỉa chạy mỗi tick: `TRIM_MODE_CROSS_SIDE` và `TRIM_MODE_SAME_SIDE`.
+
+#### ⛔ BẤT BIẾN: Loại trừ lẫn nhau
+- Khối CROSS TRIM và khối SAME-SIDE TRIM **KHÔNG BAO GIỜ** được chạy cùng lúc.
+- Code PHẢI dùng guard `if(inp_trim_mode == TRIM_MODE_XXX_SIDE)` để bọc từng khối riêng biệt.
+- Điều này để ngăn chặn EA tỉa 2 lệnh trong 1 tick.
+
+#### ⛔ BẤT BIẾN: Bắt buộc kiểm tra Trigger Count
+- **MỌI đường dẫn** gọi đến hàm tỉa (`AttemptTrim...`) đều PHẢI đi qua bước kiểm tra ngưỡng kích hoạt (`inp_trim_trigger_level`).
+- Nếu `inp_trim_trigger_mode == TRIM_BY_COUNT`: phe bị tỉa phải có số lệnh >= ngưỡng.
+- Cách đếm số lệnh kích hoạt:
+  - Nếu `inp_trim_count_both_sides = false`: Chỉ đếm lệnh phe bị tỉa.
+  - Nếu `inp_trim_count_both_sides = true`: Đếm tổng lệnh cả BUY và SELL.
+- **Trong CROSS_SIDE mode**: 
+  - Nếu BUY lãi tỉa SELL lỗ → PHẢI kiểm tra trigger count đối với phe SELL.
+  - Nếu SELL lãi tỉa BUY lỗ → PHẢI kiểm tra trigger count đối với phe BUY.
+
 ---
 
 ## 6. TỈA KHẨN CẤP (EMERGENCY TRIM)
@@ -417,3 +436,4 @@ SELL DCA Dương: Giá hiện tại <= (lowest_sell_price - khoảng cách)
 | Ngày | Thay đổi |
 |------|----------|
 | 2026-04-26 | Tạo file skill ban đầu từ audit toàn diện v37.3 |
+| 2026-04-29 | Bổ sung quy tắc 5.6 (Dispatch) sau khi fix lỗi Cross Trim bypass trigger và Same-Side chạy song song. |
