@@ -989,6 +989,7 @@ bool ExecuteRescueTrim(
       return true;
    }
 
+
    return false;
 }
 

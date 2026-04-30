@@ -159,6 +159,16 @@ Quỹ không đủ cả 2                  → CHỜ tích luỹ thêm
 | `TRIM_STYLE_DEFAULT` | Dùng quỹ tích luỹ (g_fund_trim_xxx) |
 | `TRIM_STYLE_RESCUE` | Dùng Rescue Fund (đóng trực tiếp lệnh lãi để bù lỗ) |
 
+### ⛔ BẤT BIẾN: Nguyên lý Rescue Fund (Tỉa Trực Tiếp)
+- **Nguồn quỹ cứu trợ:** Rescue Fund sử dụng **TẤT CẢ** các lệnh đang lãi (profit > 0) của phe được chỉ định (cùng chiều hoặc chéo chiều). Điều này bao gồm cả **lệnh Initial**. Việc lệnh Initial đang lãi bị đem đi "hiến tế" để bù lỗ là **ĐÚNG LOGIC BẮT BUỘC**, tuyệt đối không được sửa đổi để bảo vệ lệnh Initial.
+- **Sắp xếp nguồn quỹ:** Các lệnh lãi sẽ được sắp xếp theo thứ tự **Lãi To Nhất -> Lãi Nhỏ Nhất** và bị đem đi đóng dần cho đến khi đủ tiền bù lỗ.
+
+### ⛔ BẤT BIẾN: Tính nhất quán của mục tiêu (Partial vs Full Trim)
+- Bất kể EA đang thực hiện Tỉa Toàn Phần (Full Trim) hay Tỉa Một Phần (Partial Trim), **đối tượng Bị Lỗ (Patient) luôn luôn là MỘT.**
+- Lệnh mục tiêu được xác định là lệnh DCA Dương (hoặc Initial) **cũ nhất** (thời gian mở sớm nhất, lỗ xa nhất).
+- Khi Tỉa Một Phần thực thi, nó sẽ xẻo một phần Volume của lệnh mục tiêu. Ở tick tiếp theo, lệnh này (với Volume đã giảm) **VẪN LÀ lệnh cũ nhất**, do đó EA sẽ tiếp tục nhắm vào nó.
+- **Tuyệt đối không chuyển mục tiêu:** Cho đến khi lệnh mục tiêu bị clear 100%, EA sẽ không bao giờ tự ý chuyển sang tỉa lệnh khác. Điều này đảm bảo tính tuần tự chặt chẽ: Xử lý xong 1 lệnh mới đến lệnh tiếp theo.
+
 ### 5.5 Cơ chế Dispatch Tỉa Mặc Định (Mỗi Tick)
 
 EA hỗ trợ 2 chế độ tỉa chạy mỗi tick: `TRIM_MODE_CROSS_SIDE` và `TRIM_MODE_SAME_SIDE`.
