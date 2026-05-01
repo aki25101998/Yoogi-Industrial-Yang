@@ -145,8 +145,8 @@ Quỹ không đủ cả 2                  → CHỜ tích luỹ thêm
 
 ### ⛔ BẤT BIẾN: Tính nhất quán của mục tiêu (Partial vs Full Trim)
 - Bất kể EA đang thực hiện Tỉa Toàn Phần (Full Trim) hay Tỉa Một Phần (Partial Trim), **đối tượng Bị Lỗ (Patient) luôn luôn là MỘT.**
-- Lệnh mục tiêu được xác định là lệnh **LỖ NẶNG NHẤT** (lệnh xa nhất so với giá hiện tại, có `profit_swap` âm nhiều nhất). EA sẽ luôn ưu tiên "nhổ" cái gai lớn nhất để giải phóng margin.
-- Khi Tỉa Một Phần thực thi, nó sẽ xẻo một phần Volume của lệnh mục tiêu. Ở tick tiếp theo, lệnh này (với Volume đã giảm) **VẪN LÀ lệnh lỗ nặng nhất**, do đó EA sẽ tiếp tục nhắm vào nó.
+- Lệnh mục tiêu được xác định là lệnh **XA NHẤT SO VỚI GIÁ HIỆN TẠI (Max Pip Distance)**. EA không chọn theo USD lỗ (vì lot khác nhau sẽ làm sai lệch), mà chọn lệnh bị giá đi ngược nhiều pip nhất để ưu tiên "nhổ" cái gai lớn nhất và giải phóng margin một cách chính xác.
+- Khi Tỉa Một Phần thực thi, nó sẽ xẻo một phần Volume của lệnh mục tiêu. Ở tick tiếp theo, lệnh này (với Volume đã giảm) **VẪN LÀ lệnh xa nhất**, do đó EA sẽ tiếp tục nhắm vào nó một cách nhất quán.
 - **Tuyệt đối không chuyển mục tiêu:** Cho đến khi lệnh mục tiêu bị clear 100%, EA sẽ không bao giờ tự ý chuyển sang tỉa lệnh khác. Điều này đảm bảo tính tuần tự chặt chẽ: Xử lý xong 1 lệnh mới đến lệnh tiếp theo.
 
 ### ⛔ BẤT BIẾN: Bảo Vệ Lệnh Initial

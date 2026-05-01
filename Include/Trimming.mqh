@@ -134,7 +134,7 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   double biggest_loss = 0;
+   double max_pip_distance = 0;
 
    for(int i=0; i<ArraySize(positions); i++)
    {
@@ -149,9 +149,10 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
          // KHONG DUOC PHEP chon Initial lam muc tieu tia
          if(StringFind(positions[i].comment, "Initial") != -1) continue;
 
-         if(positions[i].profit_swap < biggest_loss)
+         double pip_dist = GetPipDistanceFromEntry(positions[i]);
+         if(pip_dist > max_pip_distance)
          {
-            biggest_loss = positions[i].profit_swap;
+            max_pip_distance = pip_dist;
             patient_ticket = positions[i].ticket;
             patient_profit = positions[i].profit_swap;
             patient_volume = positions[i].volume;
@@ -362,17 +363,20 @@ double AttemptEmergencyTrim(string period_type, double budget, const PositionInf
    ulong patient_ticket = 0;
    double patient_loss = 0;
    double patient_volume = 0;
-   double biggest_loss = 0;
+   double max_pip_distance = 0;
    for(int i=0; i < ArraySize(positions); i++) {
        if(positions[i].type == side_to_trim) {
-           if(positions[i].profit_swap < biggest_loss) {
+           if(positions[i].profit_swap < 0) {
                // KHONG DUOC PHEP chon Initial lam muc tieu tia
                if(StringFind(positions[i].comment, "Initial") != -1) continue;
                
-               biggest_loss = positions[i].profit_swap;
-               patient_ticket = positions[i].ticket;
-               patient_loss = positions[i].profit_swap;
-               patient_volume = positions[i].volume;
+               double pip_dist = GetPipDistanceFromEntry(positions[i]);
+               if(pip_dist > max_pip_distance) {
+                   max_pip_distance = pip_dist;
+                   patient_ticket = positions[i].ticket;
+                   patient_loss = positions[i].profit_swap;
+                   patient_volume = positions[i].volume;
+               }
            }
        }
    }
@@ -581,7 +585,7 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   double biggest_loss = 0;
+   double max_pip_distance = 0;
    
    int dca_duong_count = 0;
    int dca_duong_loss_count = 0;
@@ -599,9 +603,10 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
                if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
             }
             dca_duong_loss_count++;
-            if(positions[i].profit_swap < biggest_loss)
+            double pip_dist = GetPipDistanceFromEntry(positions[i]);
+            if(pip_dist > max_pip_distance)
             {
-               biggest_loss = positions[i].profit_swap;
+               max_pip_distance = pip_dist;
                patient_ticket = positions[i].ticket;
                patient_profit = positions[i].profit_swap;
                patient_volume = positions[i].volume;
@@ -731,7 +736,7 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   double biggest_loss = 0;
+   double max_pip_distance = 0;
    
    int initial_count = 0;
    int initial_loss_count = 0;
@@ -749,9 +754,10 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
                if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
             }
             initial_loss_count++;
-            if(positions[i].profit_swap < biggest_loss)
+            double pip_dist = GetPipDistanceFromEntry(positions[i]);
+            if(pip_dist > max_pip_distance)
             {
-               biggest_loss = positions[i].profit_swap;
+               max_pip_distance = pip_dist;
                patient_ticket = positions[i].ticket;
                patient_profit = positions[i].profit_swap;
                patient_volume = positions[i].volume;
@@ -889,7 +895,7 @@ bool ExecuteRescueTrim(
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   double biggest_loss = 0;
+   double max_pip_distance = 0;
 
    for(int i=0; i<ArraySize(positions); i++)
    {
@@ -902,9 +908,10 @@ bool ExecuteRescueTrim(
             {
                if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
             }
-            if(positions[i].profit_swap < biggest_loss)
+            double pip_dist = GetPipDistanceFromEntry(positions[i]);
+            if(pip_dist > max_pip_distance)
             {
-               biggest_loss = positions[i].profit_swap;
+               max_pip_distance = pip_dist;
                patient_ticket = positions[i].ticket;
                patient_profit = positions[i].profit_swap;
                patient_volume = positions[i].volume;
