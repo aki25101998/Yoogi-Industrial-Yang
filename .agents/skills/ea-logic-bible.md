@@ -1,24 +1,21 @@
-# 📜 YOOGI YIN YANG — KINH THÁNH LOGIC EA
+# 📜 YOOGI YIN YANG — KINH THÁNH LOGIC EA (INDUSTRIAL VERSION)
 
 > **BẮT BUỘC ĐỌC TRƯỚC KHI CHỈNH SỬA BẤT KỲ DÒNG CODE NÀO.**
-> File này chứa toàn bộ logic nguyên thuỷ và bất biến (invariant) của EA.
+> File này chứa toàn bộ logic nguyên thuỷ và bất biến (invariant) của phiên bản EA Industrial.
 > Mọi thay đổi code PHẢI tuân thủ các quy tắc trong file này.
-> Khi tạo tính năng mới, PHẢI cập nhật file này.
 
 ---
 
 ## 1. KIẾN TRÚC FILE
 
 ```
-Yoogi Yin Yang.mq5          ← Main file: OnInit, OnTick, OnDeinit, ProcessNewDeals
+Yoogi Yin Yang.mq5          ← Main file: OnInit, OnTick, OnDeinit
 ├── Include/Input.mqh        ← Tham số đầu vào (input)
 ├── Include/Globals.mqh      ← Biến toàn cục, struct, hàm tiện ích
 ├── Include/Corelogic.mqh    ← Logic DCA Dương
-├── Include/Trimming.mqh     ← Logic tỉa lệnh (Smart Trim, Emergency, Rescue Fund)
-├── Include/Security.mqh     ← Xác minh bản quyền
 ├── Include/Panel.mqh        ← Nút bấm giao diện
 ├── Include/InfoDisplay.mqh  ← Bảng thông tin trạng thái
-├── Include/ProfitDisplay.mqh← Hiển thị quỹ/budget
+├── Include/ProfitDisplay.mqh← Hiển thị target profit
 └── Include/PendingOrders.mqh← Hybrid pending orders, Grid Healing, Refill
 ```
 
@@ -28,20 +25,13 @@ Yoogi Yin Yang.mq5          ← Main file: OnInit, OnTick, OnDeinit, ProcessNewD
 
 ---
 
-## 2. HỆ THỐNG COMMENT PHÂN LOẠI LỆNH
+## 2. HỆ THỐNG NHẬN DIỆN LỆNH LƯỚI (GRID NODES)
 
-### ⛔ BẤT BIẾN: Encoding comment
-EA sử dụng **ASCII không dấu** cho tất cả comment lệnh:
-
-| Comment | Loại lệnh | Mô tả |
-|---------|-----------|-------|
-| `"Initial Buy"` | Lệnh mở đầu BUY | Lệnh đầu tiên của chu kỳ BUY |
-| `"Initial Sell"` | Lệnh mở đầu SELL | Lệnh đầu tiên của chu kỳ SELL |
-| `"DCA DUONG"` | DCA Dương | Lệnh thuận xu hướng (giá đi đúng chiều) |
-
-> **TUYỆT ĐỐI KHÔNG sử dụng tiếng Việt có dấu** trong comment lệnh.
-> KHÔNG dùng: `"DCA DƯƠNG"`, `"DCA HÀNG"`
-> Khi lọc comment bằng `StringFind()`, PHẢI dùng: `"DCA DUONG"`, `"Initial"`
+### ⛔ BẤT BIẾN: Không phụ thuộc vào Comment
+EA phiên bản Industrial **TUYỆT ĐỐI KHÔNG** phụ thuộc vào Comment (vd "DCA DUONG", "Initial") để phân loại hay nhận diện các lệnh trong lưới (grid) hay tính toán profit.
+- Tất cả các vị thế (positions) và lệnh chờ (pending orders) khớp với `inp_magic_number` và `_Symbol` đều được coi là một mắt xích (node) hợp lệ trong lưới.
+- Lý do: Sàn giao dịch (Brokers) hoặc các khoản phí Swap thường xuyên tự động thay đổi, cắt xén hoặc ghi đè Comment, dẫn đến việc EA bị "mù" nếu phụ thuộc vào Comment để Heal Grid (vá lưới).
+- Cơ chế Neo Lưới (Grid Anchor): Để duy trì và vá lưới, EA sẽ tìm lệnh đang chạy có giá cao nhất (Highest Buy) hoặc thấp nhất (Lowest Sell) làm gốc tọa độ. Không sử dụng F3 GlobalVariables hay lịch sử (history) để tìm lệnh Initial cũ nữa.
 
 ---
 
@@ -50,41 +40,31 @@ EA sử dụng **ASCII không dấu** cho tất cả comment lệnh:
 Thứ tự xử lý trong `OnTick()` là **BẤT BIẾN** và phải tuân theo đúng trình tự:
 
 ```
-1. ProcessNewDeals()           ← Cập nhật kế toán deal đóng
-2. Reset g_last_close_reason   ← SAU ProcessNewDeals, KHÔNG PHẢI TRƯỚC
-3. CheckAndResetAccounting()   ← Reset ngân sách nếu đầu ngày/tuần mới
+1. PHA 1: Thu thập positions[] ← Scan toàn bộ vị trí đang mở của EA
+2. PHA 1.5: Thu thập pending   ← Scan toàn bộ lệnh chờ của EA
+3. PHA 2: Tính toán thống kê   ← Đếm lệnh, tính profit tổng quan cho từng phe (Buy/Sell)
 
-4. PHA 1: Thu thập positions[] ← Scan toàn bộ vị trí đang mở
-5. PHA 1.5: Thu thập pending   ← Scan toàn bộ lệnh chờ
-6. PHA 2: Suy luận comment     ← Gán comment cho lệnh mồ côi
-7. PHA 3: Tính toán thống kê   ← Đếm lệnh, tính profit từng phe
+4. Kiểm tra TP USD            ← Đóng toàn bộ lệnh (EA) nếu đạt target (inp_take_profit_usd)
 
-8. Reset QUỸ ALL nếu 0 lệnh  ← Auto-reset khi không còn position
-9. Kiểm tra TP USD            ← Đóng toàn bộ nếu đạt target
-
-10. Logic chạy mỗi tick:
+5. Logic chạy mỗi tick (nếu chưa chốt TP):
     - CleanRedundantPendingOrders
     - SyncPendingVolume
     - HealGridGaps
-    - UpdateDynamicBaseLot
-    - ManageTesterWithdrawal
-    - ManageEmergencyTrimming / ManagePipBasedEmergencyTrim
     - CheckAndOpenInitialTrades
     - ManageBuyPositions / ManageSellPositions
-    - Lọc phe lỗ nhiều nhất (cho quỹ ALL)
-    - TỈA CÙNG CHIỀU / CROSS TRIM
 
-11. UpdateDisplay + SyncOpenPositionsMemory  ← Cuối tick
+6. UpdateDisplay  ← Cuối tick (Cập nhật UI)
 ```
 
 ### ⛔ QUY TẮC THỨ TỰ
-- `ProcessNewDeals()` PHẢI chạy ĐẦU TIÊN trong OnTick
-- `g_last_close_reason = CR_UNKNOWN` PHẢI đặt SAU `ProcessNewDeals()`
-- `SyncOpenPositionsMemory()` PHẢI là thao tác CUỐI CÙNG trước kết thúc OnTick
-- `g_prev_buy_count` / `g_prev_sell_count` PHẢI cập nhật cuối tick
+- `UpdateDisplay()` PHẢI là thao tác CUỐI CÙNG trước khi kết thúc OnTick.
+- Chức năng chốt lời toàn cục (TP USD) chạy TRƯỚC các hàm quản lý lệnh/lưới (Manage, Heal).
 
 ---
 
+<<<<<<< HEAD
+## 4. TP USD (TAKE PROFIT THEO USD)
+=======
 ## 4. HỆ THỐNG QUỸ TỈA LỆNH
 
 ### 4.1 Các loại quỹ
@@ -165,9 +145,13 @@ Quỹ không đủ cả 2                  → CHỜ tích luỹ thêm
 
 ### ⛔ BẤT BIẾN: Tính nhất quán của mục tiêu (Partial vs Full Trim)
 - Bất kể EA đang thực hiện Tỉa Toàn Phần (Full Trim) hay Tỉa Một Phần (Partial Trim), **đối tượng Bị Lỗ (Patient) luôn luôn là MỘT.**
-- Lệnh mục tiêu được xác định là lệnh DCA Dương (hoặc Initial) **cũ nhất** (thời gian mở sớm nhất, lỗ xa nhất).
-- Khi Tỉa Một Phần thực thi, nó sẽ xẻo một phần Volume của lệnh mục tiêu. Ở tick tiếp theo, lệnh này (với Volume đã giảm) **VẪN LÀ lệnh cũ nhất**, do đó EA sẽ tiếp tục nhắm vào nó.
+- Lệnh mục tiêu được xác định là lệnh **LỖ NẶNG NHẤT** (lệnh xa nhất so với giá hiện tại, có `profit_swap` âm nhiều nhất). EA sẽ luôn ưu tiên "nhổ" cái gai lớn nhất để giải phóng margin.
+- Khi Tỉa Một Phần thực thi, nó sẽ xẻo một phần Volume của lệnh mục tiêu. Ở tick tiếp theo, lệnh này (với Volume đã giảm) **VẪN LÀ lệnh lỗ nặng nhất**, do đó EA sẽ tiếp tục nhắm vào nó.
 - **Tuyệt đối không chuyển mục tiêu:** Cho đến khi lệnh mục tiêu bị clear 100%, EA sẽ không bao giờ tự ý chuyển sang tỉa lệnh khác. Điều này đảm bảo tính tuần tự chặt chẽ: Xử lý xong 1 lệnh mới đến lệnh tiếp theo.
+
+### ⛔ BẤT BIẾN: Bảo Vệ Lệnh Initial
+- **TUYỆT ĐỐI KHÔNG TỈA LỆNH INITIAL:** Các hàm tỉa (Rescue, Smart Trim, Emergency) KHÔNG ĐƯỢC PHÉP chọn lệnh có comment chứa "Initial" làm mục tiêu cắt lỗ. Lệnh Initial là mỏ neo của lưới và phải được giữ lại cho đến khi chốt lời toàn bộ.
+- **KHÔNG DÙNG INITIAL LÀM QUỸ:** Rescue Fund KHÔNG ĐƯỢC PHÉP đóng lệnh Initial đang lãi để lấy tiền đi cứu lệnh lỗ khác. Lệnh Initial lãi phải được bảo toàn.
 
 ### 5.5 Cơ chế Dispatch Tỉa Mặc Định (Mỗi Tick)
 
@@ -289,69 +273,63 @@ Deal profit < 0 VÀ lý do = CR_UNKNOWN (đóng thủ công):
 ---
 
 ## 9. TP USD (TAKE PROFIT THEO USD)
+>>>>>>> 849371c (Refactor: Update trimming logic to prioritize biggest loss instead of oldest order)
 
 ```
 Khi bật (inp_take_profit_usd > 0):
-  - total_ea_profit = tổng P/L đang mở (KHÔNG tính quỹ tỉa)
-  - Nếu total_ea_profit >= target → Đóng TOÀN BỘ positions
-  - Dùng cờ g_is_closing_tp_usd để retry nếu đóng chưa hết
-  - Sau khi đóng hết → Reset g_fund_all, KHÔNG xoá pending (để Recycle)
-  - KHÔNG return → Cho phép EA mở Initial mới ngay lập tức
+  - total_ea_profit = tổng P/L đang mở của tất cả lệnh cùng MagicNumber
+  - Nếu total_ea_profit >= target → Đóng TOÀN BỘ positions và Pending Orders liên quan
+  - Dùng cờ g_is_closing_tp_usd để đảm bảo tiến trình đóng không bị gián đoạn.
+  - Sau khi đóng hết → EA quay lại vòng lặp mới (Reset lưới)
 ```
 
 ### ⛔ BẤT BIẾN: TP USD
-- Profit tính = `POSITION_PROFIT + POSITION_SWAP` (bao gồm swap)
-- Sau khi TP USD đóng hết lệnh, KHÔNG xoá pending orders (chúng sẽ được Recycle)
-- `g_is_closing_tp_usd` phải được reset về false sau khi đóng xong
+- Profit tính = `POSITION_PROFIT + POSITION_SWAP` (bao gồm cả phí swap để không bị lỗ ẩn).
+- `g_is_closing_tp_usd` phải được reset về false sau khi đóng xong để EA hoạt động lại bình thường.
 
 ---
 
-## 10. DCA DƯƠNG — LOGIC MỞ LỆNH THUẬN
+## 5. HỆ THỐNG LỆNH CHỜ (PENDING ORDERS) VÀ DCA DƯƠNG
 
-### 10.1 Điều kiện mở DCA Dương
+### 5.1 Chế độ Hybrid
 
-```
-BUY DCA Dương: Giá hiện tại >= (highest_buy_price + khoảng cách)
-SELL DCA Dương: Giá hiện tại <= (lowest_sell_price - khoảng cách)
-```
+EA sử dụng hệ thống **kết hợp Market + Pending** cho chiến lược DCA Dương:
+- Lệnh Initial: Mở trực tiếp bằng lệnh Market.
+- Lệnh DCA Dương: Đặt trước bằng **Buy Stop / Sell Stop**.
+- Lợi ích: Khi giá chạy mạnh (trượt giá/slippage), lệnh Pending khớp tự động ở server giúp vào lệnh chính xác hơn so với đặt lệnh Market từ Client.
 
-### 10.2 Pending thay Market
+### 5.2 Các cơ chế tự động bảo vệ lưới
 
-- Khi `inp_enable_pending_mode = true`, DCA Dương được đặt bằng **Buy Stop / Sell Stop**
-- EA tự động Recycle (modify giá) thay vì xoá/tạo lại
+| Cơ chế | Mô tả | Chu kỳ |
+|--------|-------|----------|
+| `CleanRedundantPendingOrders` | Xoá các lệnh pending trùng lập với position đã khớp (cùng mức giá) | Mỗi tick |
+| `SyncPendingVolume` | Tự động cập nhật lại lot của pending nếu `inp_lot_dca_duong` bị thay đổi thủ công | 3 giây |
+| `HealGridGaps` | Tự động vá các lỗ hổng (gap) trong lưới giá nếu phát hiện thiếu mắt xích | 5 giây |
+| `RefillStopOrdersIfNeeded` | Tự động nhồi thêm lệnh pending phía trước khi giá đẩy lên gần hết lệnh chờ | Mỗi tick |
+| `RecyclePendingOrders` | Cập nhật (Modify) giá của các lệnh pending cũ thừa thãi thay vì xoá/tạo mới để tối ưu tốc độ | Mỗi khi cần |
+
+### ⛔ BẤT BIẾN: Pending Orders & Grid
+- **Dung sai (Tolerance):** Khi kiểm tra trùng lệnh tại một mức giá, EA dùng sai số `0.5 * khoảng cách DCA Dương`.
+- **Gap Threshold:** Khoảng cách để EA xác định là "lỗ hổng" cần vá là `1.5 * khoảng cách DCA Dương`.
+- Lot pending = `inp_lot_dca_duong` (sử dụng lot tĩnh, không nhồi martingale hay volume multiplier).
+- Lưới Neo (Anchor): Luôn lấy mức giá cao nhất của BUY hoặc thấp nhất của SELL đang Active để xác định hướng rải lệnh pending tiếp theo.
 
 ---
 
-## 11. HIỂN THỊ (DISPLAY)
-
-### ⛔ BẤT BIẾN: Display
-- InfoDisplay dùng filter `"DCA DUONG"`, `"Initial"` (ASCII)
-- Display cập nhật mỗi **2 giây** (throttle bằng `g_last_ui_update_time`)
-- Display KHÔNG ảnh hưởng logic giao dịch — chỉ hiển thị
-
----
-
-## 12. DANH SÁCH CÁC CỜ TRẠNG THÁI QUAN TRỌNG
+## 6. DANH SÁCH CÁC CỜ TRẠNG THÁI QUAN TRỌNG
 
 | Biến | Mục đích | Reset khi |
 |------|----------|-----------|
-| `g_is_closing_tp_usd` | Đang đóng TP USD | Đóng hết positions |
-| `g_last_close_reason` | Lý do đóng lệnh gần nhất | Đầu mỗi tick (SAU ProcessNewDeals) |
-| `g_current_emergency_mode` | Trạng thái khẩn cấp (NONE/DAY/WEEK) | Khi DD giảm dưới ngưỡng |
-| `g_prev_buy_count` / `g_prev_sell_count` | Số lệnh tick trước | Cuối mỗi tick |
+| `g_is_closing_tp_usd` | Khóa EA khi đang trong quá trình đóng chốt lời TP USD | Đóng hết vị thế thành công |
 
 ---
 
-## 13. QUY TẮC VÀNG KHI CHỈNH SỬA CODE
+## 7. QUY TẮC VÀNG KHI CHỈNH SỬA CODE
 
-1. **KHÔNG BAO GIỜ** thay đổi thứ tự xử lý trong OnTick mà không cập nhật file này
-2. **KHÔNG BAO GIỜ** dùng Unicode tiếng Việt có dấu trong comment lệnh hoặc StringFind
-3. **KHÔNG BAO GIỜ** thay đổi cơ chế đếm deal tuyệt đối (`g_last_processed_deal_count`)
-4. **KHÔNG BAO GIỜ** xoá pending orders khi TP USD đóng xong
-5. **KHÔNG BAO GIỜ** trừ quỹ tỉa khi deal lỗ có lý do CR_TACTICAL
-6. **LUÔN** gọi `AddTacticalClose()` hoặc `AddEmergencyClose()` TRƯỚC khi đóng lệnh
-7. **LUÔN** gọi `SaveBudget()` sau khi thay đổi quỹ/budget
-8. **LUÔN** cập nhật file skill này khi thêm tính năng mới
+1. **KHÔNG BAO GIỜ** thay đổi thứ tự xử lý trong OnTick mà không cập nhật file này.
+2. **KHÔNG BAO GIỜ** phụ thuộc vào Comment (`OrderGetString(ORDER_COMMENT)`) để gán logic giao dịch quan trọng.
+3. **LUÔN** giữ kiến trúc "Industrial": Tối giản, chạy nhẹ, tập trung vào sức mạnh của DCA Dương và chốt lời tổng cục (TP USD). Mọi tính năng rác (DCA Âm, Trimming, Break Even, Trailing, Lưới đa tầng) đã bị gỡ bỏ vĩnh viễn và không được khôi phục.
+4. **LUÔN** cập nhật file skill này khi thêm tính năng mới hoặc thay đổi cơ chế cốt lõi.
 
 ---
 
@@ -360,4 +338,5 @@ SELL DCA Dương: Giá hiện tại <= (lowest_sell_price - khoảng cách)
 | Ngày | Thay đổi |
 |------|----------|
 | 2026-04-26 | Tạo file skill ban đầu từ audit toàn diện v37.3 |
-| 2026-04-29 | Bổ sung quy tắc 5.5 (Dispatch) sau khi fix lỗi Cross Trim bypass trigger và Same-Side chạy song song. Loại bỏ các phần logic rác cũ (DCA Âm, Trailing, Lock) để đúng chuẩn bản Industrial. |
+| 2026-04-29 | Loại bỏ các phần logic rác cũ (DCA Âm, Trailing, Lock, Trimming các loại) để cấu trúc lại thành bản Industrial. |
+| 2026-05-01 | Xóa bỏ sự phụ thuộc vào Order Comment. Hệ thống chuyển sang neo tự động bằng lệnh cao/thấp nhất (Grid Nodes) để vá Gap (Heal Grid) cực chuẩn. Cập nhật lại Kinh Thánh phù hợp với bản Industrial tối giản. |

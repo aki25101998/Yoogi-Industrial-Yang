@@ -13,7 +13,7 @@
 #include "Include/Input.mqh"
 #include "Include/Globals.mqh"
 #include "Include/CoreLogic.mqh"
-#include "Include/Trimming.mqh"
+
 #include "Include/Panel.mqh"
 #include "Include/InfoDisplay.mqh"
 #include "Include/ProfitDisplay.mqh"
@@ -93,8 +93,6 @@ void OnTick()
 
     double highest_buy_price = 0, lowest_buy_price = DBL_MAX;
     double highest_sell_price = 0, lowest_sell_price = DBL_MAX;
-    int commentless_indices[];
-    int commentless_count = 0;
 
     // --- PHA 1: THU THẬP DỮ LIỆU ---
     for(int i = total_positions_on_chart - 1; i >= 0; i--)
@@ -113,13 +111,6 @@ void OnTick()
                 positions[current_ea_pos_count].comment = comment;
                 positions[current_ea_pos_count].open_time = (datetime)PositionGetInteger(POSITION_TIME);
 
-                if(comment == "")
-                {
-                    ArrayResize(commentless_indices, commentless_count + 1);
-                    commentless_indices[commentless_count] = current_ea_pos_count;
-                    commentless_count++;
-                }
-                
                 if(positions[current_ea_pos_count].type == POSITION_TYPE_BUY)
                 {
                      if(positions[current_ea_pos_count].open_price > highest_buy_price) highest_buy_price = positions[current_ea_pos_count].open_price;
@@ -184,28 +175,7 @@ void OnTick()
     }
     ArrayResize(g_pending_orders, current_ea_pending_count);
 
-    // --- PHA 2: SUY LUẬN COMMENT CHO LỆNH MỒ CÔI ---
-    for(int i = 0; i < commentless_count; i++)
-    {
-        int index_to_fix = commentless_indices[i];
-        string inferred_comment = "";
-        
-        if(positions[index_to_fix].type == POSITION_TYPE_BUY)
-        {
-            if(highest_buy_price == 0) inferred_comment = "Initial Buy";
-            else if(positions[index_to_fix].open_price > highest_buy_price) inferred_comment = "DCA DUONG";
-            else inferred_comment = "DCA DUONG";
-        }
-        else
-        {
-            if(lowest_sell_price == DBL_MAX) inferred_comment = "Initial Sell";
-            else if(positions[index_to_fix].open_price < lowest_sell_price) inferred_comment = "DCA DUONG";
-            else inferred_comment = "DCA DUONG";
-        }
-        positions[index_to_fix].comment = inferred_comment;
-    }
-
-    // --- PHA 3: TÍNH TOÁN CÁC THÔNG SỐ ---
+    // --- PHA 2: TÍNH TOÁN CÁC THÔNG SỐ ---
     for(int i = 0; i < current_ea_pos_count; i++)
     {
         if(positions[i].type == POSITION_TYPE_BUY)
@@ -276,208 +246,13 @@ void OnTick()
     
     ManageTesterWithdrawal();
 
-    // Tỉa khẩn cấp: chạy mỗi tick
-    if(inp_emergency_trim_mode == ETM_PIP)
-    {
-        ManagePipBasedEmergencyTrim(positions);
-    }
-    else if(inp_emergency_trim_mode == ETM_DRAWDOWN)
-    {
-        ManageEmergencyTrimming(positions);
-    }
+
 
     CheckAndOpenInitialTrades(total_buy_pos, total_sell_pos);
     ManageBuyPositions(positions, total_buy_pos, total_buy_profit, total_sell_profit, highest_buy_price, lowest_buy_price);
     ManageSellPositions(positions, total_sell_pos, total_buy_profit, total_sell_profit, highest_sell_price, lowest_sell_price);
     
-    // --- RESET QUỸ khi chuyển từ <trigger sang >=trigger ---
-    if(inp_trim_trigger_mode == TRIM_BY_COUNT)
-    {
-        if(total_buy_pos >= inp_trim_trigger_level && g_prev_buy_count < inp_trim_trigger_level)
-        {
-            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-            {
-                g_fund_trim_sell = 0;
-                Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (CROSS: BUY dat trigger %d) <<<", inp_trim_trigger_level));
-            }
-            else
-            {
-                g_fund_trim_buy = 0;
-                Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (BUY dat trigger %d) <<<", inp_trim_trigger_level));
-            }
-            SaveBudget();
-        }
-        if(total_sell_pos >= inp_trim_trigger_level && g_prev_sell_count < inp_trim_trigger_level)
-        {
-            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-            {
-                g_fund_trim_buy = 0;
-                Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (CROSS: SELL dat trigger %d) <<<", inp_trim_trigger_level));
-            }
-            else
-            {
-                g_fund_trim_sell = 0;
-                Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (SELL dat trigger %d) <<<", inp_trim_trigger_level));
-            }
-            SaveBudget();
-        }
-    }
-    else if(inp_trim_trigger_mode == TRIM_BY_DISTANCE)
-    {
-        bool buy_has_distance = false;
-        bool sell_has_distance = false;
-        for(int i = 0; i < ArraySize(positions); i++)
-        {
-            if(positions[i].profit_swap < 0)
-            {
-                double pip_dist = GetPipDistanceFromEntry(positions[i]);
-                if(pip_dist >= inp_trim_pip_distance)
-                {
-                    if(positions[i].type == POSITION_TYPE_BUY) buy_has_distance = true;
-                    else sell_has_distance = true;
-                }
-            }
-        }
-        
-        if(buy_has_distance && !g_buy_distance_triggered)
-        {
-            g_buy_distance_triggered = true;
-            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-            { g_fund_trim_sell = 0; Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (CROSS: BUY dat %.0f pip) <<<", inp_trim_pip_distance)); }
-            else
-            { g_fund_trim_buy = 0; Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (BUY dat %.0f pip) <<<", inp_trim_pip_distance)); }
-            SaveBudget();
-        }
-        else if(!buy_has_distance && g_buy_distance_triggered) g_buy_distance_triggered = false;
-        
-        if(sell_has_distance && !g_sell_distance_triggered)
-        {
-            g_sell_distance_triggered = true;
-            if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
-            { g_fund_trim_buy = 0; Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (CROSS: SELL dat %.0f pip) <<<", inp_trim_pip_distance)); }
-            else
-            { g_fund_trim_sell = 0; Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (SELL dat %.0f pip) <<<", inp_trim_pip_distance)); }
-            SaveBudget();
-        }
-        else if(!sell_has_distance && g_sell_distance_triggered) g_sell_distance_triggered = false;
-    }
 
-    // --- LỌC LỖ NHIỀU NHẤT CHO QUỸ ALL ---
-    bool allow_buy_trim = true;
-    bool allow_sell_trim = true;
-    
-    if(inp_take_profit_usd > 0)
-    {
-        if(total_buy_profit >= 0 && total_sell_profit >= 0)
-        {
-            allow_buy_trim = false;
-            allow_sell_trim = false;
-        }
-        else if(total_buy_profit < total_sell_profit)
-            allow_sell_trim = false;
-        else if(total_sell_profit < total_buy_profit)
-            allow_buy_trim = false;
-    }
-
-    // ============================================================
-    // CROSS TRIM: Phe thắng tỉa phe thua
-    // ============================================================
-    if(inp_use_trimming && inp_trim_mode == TRIM_MODE_CROSS_SIDE && total_buy_pos > 0 && total_sell_pos > 0)
-    {
-        // Xác định phe thắng và phe thua
-        if(total_buy_profit > 0 && total_sell_profit < 0 && allow_sell_trim)
-        {
-            // BUY đang lãi, SELL đang lỗ → BUY tỉa SELL
-            // Kiểm tra trigger cho phe SELL (phe bị tỉa)
-            int sell_count_for_trigger = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_sell_pos;
-            if(inp_trim_trigger_mode != TRIM_BY_COUNT || sell_count_for_trigger >= inp_trim_trigger_level)
-            {
-                bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
-                bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
-                
-                if(has_dca_duong_loss)
-                {
-                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
-                    else AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
-                }
-                else if(has_initial_loss)
-                {
-                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
-                    else AttemptTrimInitial(POSITION_TYPE_SELL, positions);
-                }
-            }
-        }
-        else if(total_sell_profit > 0 && total_buy_profit < 0 && allow_buy_trim)
-        {
-            // SELL đang lãi, BUY đang lỗ → SELL tỉa BUY
-            // Kiểm tra trigger cho phe BUY (phe bị tỉa)
-            int buy_count_for_trigger = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_buy_pos;
-            if(inp_trim_trigger_mode != TRIM_BY_COUNT || buy_count_for_trigger >= inp_trim_trigger_level)
-            {
-                bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
-                bool has_initial_loss = HasLossOfType(POSITION_TYPE_BUY, "Initial", positions);
-                
-                if(has_dca_duong_loss)
-                {
-                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_BUY, positions);
-                    else AttemptTrimDcaDuong(POSITION_TYPE_BUY, positions);
-                }
-                else if(has_initial_loss)
-                {
-                    if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_BUY, positions);
-                    else AttemptTrimInitial(POSITION_TYPE_BUY, positions);
-                }
-            }
-        }
-    }
-
-    // ============================================================
-    // TỈA CÙNG CHIỀU (Same-side Trim) - CHỈ CHẠY KHI MODE SAME_SIDE
-    // ============================================================
-    if(inp_trim_mode == TRIM_MODE_SAME_SIDE)
-    {
-        // --- Phe BUY ---
-        int buy_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_buy_pos;
-        if(inp_use_trimming && allow_buy_trim && 
-           ((inp_trim_trigger_mode == TRIM_BY_COUNT && buy_trigger_count >= inp_trim_trigger_level) ||
-           (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
-        {
-            bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
-            bool has_initial_loss = HasLossOfType(POSITION_TYPE_BUY, "Initial", positions);
-            
-            if(has_dca_duong_loss)
-            {
-                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_BUY, positions);
-                else AttemptTrimDcaDuong(POSITION_TYPE_BUY, positions);
-            }
-            else if(has_initial_loss)
-            {
-                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_BUY, positions);
-                else AttemptTrimInitial(POSITION_TYPE_BUY, positions);
-            }
-        }
-        
-        // --- Phe SELL ---
-        int sell_trigger_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : total_sell_pos;
-        if(inp_use_trimming && allow_sell_trim && 
-           ((inp_trim_trigger_mode == TRIM_BY_COUNT && sell_trigger_count >= inp_trim_trigger_level) ||
-           (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
-        {
-            bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
-            bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
-            
-            if(has_dca_duong_loss)
-            {
-                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
-                else AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
-            }
-            else if(has_initial_loss)
-            {
-                if(inp_trim_style == TRIM_STYLE_RESCUE) AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
-                else AttemptTrimInitial(POSITION_TYPE_SELL, positions);
-            }
-        }
-    }
     
     // --- Cập nhật giao diện ---
     if(GetTickCount() - g_last_ui_update_time > 2000)
@@ -488,8 +263,7 @@ void OnTick()
     }
     
     SyncOpenPositionsMemory();
-    g_prev_buy_count = total_buy_pos;
-    g_prev_sell_count = total_sell_pos;
+
 }
 
 

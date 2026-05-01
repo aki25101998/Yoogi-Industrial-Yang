@@ -35,74 +35,15 @@ double   g_current_base_lot_sell;
 double   g_current_dca_duong_distance;
 
 ulong    g_last_ui_update_time = 0;
-ulong    g_last_emergency_check_time = 0;
 datetime g_last_bar_time = 0;
-
-enum E_EMERGENCY_MODE
-{
-   EM_NONE,    // Không ở chế độ khẩn cấp
-   EM_DAY,     // Chế độ khẩn cấp NGÀY đang kích hoạt
-   EM_WEEK     // Chế độ khẩn cấp TUẦN đang kích hoạt
-};
-E_EMERGENCY_MODE g_current_emergency_mode;
-E_EMERGENCY_MODE g_previous_emergency_mode;
-
-//--- ENUM cho dropdown chế độ tỉa khẩn cấp ---
-enum ENUM_EMERGENCY_TRIM_MODE
-{
-   ETM_DISABLED,    // Tắt tỉa khẩn cấp
-   ETM_DRAWDOWN,    // Tỉa theo Drawdown (USD)
-   ETM_PIP          // Tỉa theo Pip
-};
-
 enum E_CLOSE_REASON
 {
-   CR_UNKNOWN,   // Giao dịch đóng thủ công, do SL/TP, hoặc không xác định
-   CR_TACTICAL,  // Giao dịch đóng do Tỉa lệnh Thường hoặc Tỉa Chéo
-   CR_EMERGENCY  // Giao dịch đóng do Tỉa lệnh Khẩn cấp
+   CR_UNKNOWN   // Giao dịch đóng thủ công, do SL/TP, hoặc không xác định
 };
 E_CLOSE_REASON g_last_close_reason;
 
-//--- HỆ THỐNG TRACKING LÝ DO ĐÓNG LỆNH PER-TICKET ---
-ulong    g_pending_tactical_ids[];
-ulong    g_pending_emergency_ids[];
-
-void AddTacticalClose(ulong position_id)
-{
-   int size = ArraySize(g_pending_tactical_ids);
-   ArrayResize(g_pending_tactical_ids, size + 1);
-   g_pending_tactical_ids[size] = position_id;
-}
-
-void AddEmergencyClose(ulong position_id)
-{
-   int size = ArraySize(g_pending_emergency_ids);
-   ArrayResize(g_pending_emergency_ids, size + 1);
-   g_pending_emergency_ids[size] = position_id;
-}
-
 E_CLOSE_REASON LookupCloseReason(ulong position_id)
 {
-   for(int i = 0; i < ArraySize(g_pending_tactical_ids); i++)
-   {
-      if(g_pending_tactical_ids[i] == position_id)
-      {
-         for(int j = i; j < ArraySize(g_pending_tactical_ids) - 1; j++)
-            g_pending_tactical_ids[j] = g_pending_tactical_ids[j+1];
-         ArrayResize(g_pending_tactical_ids, ArraySize(g_pending_tactical_ids) - 1);
-         return CR_TACTICAL;
-      }
-   }
-   for(int i = 0; i < ArraySize(g_pending_emergency_ids); i++)
-   {
-      if(g_pending_emergency_ids[i] == position_id)
-      {
-         for(int j = i; j < ArraySize(g_pending_emergency_ids) - 1; j++)
-            g_pending_emergency_ids[j] = g_pending_emergency_ids[j+1];
-         ArrayResize(g_pending_emergency_ids, ArraySize(g_pending_emergency_ids) - 1);
-         return CR_EMERGENCY;
-      }
-   }
    return CR_UNKNOWN;
 }
 
@@ -119,24 +60,8 @@ double   g_furthest_sell_pending_price = 0;
 ulong    g_last_heal_check_time = 0;
 ulong    g_last_sync_vol_time = 0;
 
-//--- BIẾN TOÀN CỤC (Hệ thống Sổ Sách Kế Toán) ---
-double   g_safe_day = 0.0;
-double   g_budget_day = 0.0;
-double   g_safe_week = 0.0;
-double   g_budget_week = 0.0;
-double   g_trimmed_day = 0.0;
-double   g_trimmed_week = 0.0;
-
 //--- BIẾN TOÀN CỤC (Quỹ Tỉa Lệnh) ---
-double   g_fund_trim_buy = 0.0;
-double   g_fund_trim_sell = 0.0;
 double   g_fund_all = 0.0;
-
-//--- BIẾN THEO DÕI SỐ LỆNH ---
-int      g_prev_buy_count = 0;
-int      g_prev_sell_count = 0;
-bool     g_buy_distance_triggered = false;
-bool     g_sell_distance_triggered = false;
 
 bool     g_is_closing_tp_usd = false;
 
@@ -166,15 +91,9 @@ void InitializeGlobalVariables()
    g_current_dca_duong_distance = inp_dca_duong_distance_pips;
    
    g_last_ui_update_time = 0;
-   g_last_emergency_check_time = 0;
    g_last_bar_time = 0;
    
-   g_current_emergency_mode = EM_NONE;
-   g_previous_emergency_mode = EM_NONE;
-   
    g_last_close_reason = CR_UNKNOWN;
-   ArrayResize(g_pending_tactical_ids, 0);
-   ArrayResize(g_pending_emergency_ids, 0);
 
    g_last_processed_deal_count = 0;
    ArrayResize(g_open_position_tickets, 0);
@@ -186,17 +105,9 @@ void InitializeGlobalVariables()
    g_last_heal_check_time = 0;
    g_last_sync_vol_time = 0;
 
-   g_safe_day = 0.0;
-   g_budget_day = 0.0;
-   g_safe_week = 0.0;
-   g_budget_week = 0.0;
-   g_trimmed_day = 0.0;
-   g_trimmed_week = 0.0;
    g_last_known_day = 0;
    g_last_known_week_start = 0;
    
-   g_buy_distance_triggered = false;
-   g_sell_distance_triggered = false;
    g_is_closing_tp_usd = false;
 }
 
@@ -209,20 +120,14 @@ void CheckAndResetAccounting()
     datetime current_day_start = GetStartOfDay();
     if(g_last_known_day != current_day_start)
     {
-       Log("INFO", "Phát hiện ngày mới. Reset Két Sắt & Ngân Sách NGÀY.");
-       g_safe_day = 0.0;
-       g_budget_day = 0.0;
-       g_trimmed_day = 0.0;
+       Log("INFO", "Phát hiện ngày mới.");
        g_last_known_day = current_day_start;
     }
 
     datetime current_week_start = GetFinancialWeekStart();
     if(g_last_known_week_start != current_week_start)
     {
-       Log("INFO", "Phat hien tuan moi. Reset Ket Sat & Ngan Sach TUAN.");
-       g_safe_week = 0.0;
-       g_budget_week = 0.0;
-       g_trimmed_week = 0.0;
+       Log("INFO", "Phat hien tuan moi.");
        g_last_known_week_start = current_week_start;
     }
 }

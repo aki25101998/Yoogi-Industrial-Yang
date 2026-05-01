@@ -24,7 +24,7 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, doub
 {
    if(!inp_enable_buy || total_buy_pos == 0) return;
 
-   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, SymbolInfoDouble(_Symbol, SYMBOL_ASK));
+   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, hp);
    double ca = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
 
    bool ad = ca >= (hp + (double)PipToPoints(g_current_dca_duong_distance) * _Point);
@@ -70,7 +70,7 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, do
 {
    if(!inp_enable_sell || total_sell_pos == 0) return;
 
-   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, SymbolInfoDouble(_Symbol, SYMBOL_BID));
+   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, lp);
    double cb = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
    bool ad = cb <= (lp - (double)PipToPoints(g_current_dca_duong_distance) * _Point);
@@ -134,7 +134,6 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
           if(trade.Buy(g_current_base_lot_buy, _Symbol, 0.0, 0.0, t, "Initial Buy")) { 
              initial_buy_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
              need_recycle_buy = true;
-             GlobalVariableSet("LastInitialBuyPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), initial_buy_ask);
           } else Log("ERROR", StringFormat("Loi mo lenh BUY ban dau. Ma loi: %d", (int)trade.ResultRetcode()));
        }
    }
@@ -154,7 +153,6 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
           if(trade.Sell(g_current_base_lot_sell, _Symbol, 0.0, 0.0, t, "Initial Sell")) { 
              initial_sell_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
              need_recycle_sell = true;
-             GlobalVariableSet("LastInitialSellPrice_" + _Symbol + "_" + IntegerToString(inp_magic_number), initial_sell_bid);
           } else Log("ERROR", StringFormat("Loi mo lenh SELL ban dau. Ma loi: %d", (int)trade.ResultRetcode()));
        }
    }
@@ -178,106 +176,6 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
       Log("INFO", StringFormat(">>> QUY ALL %+.2f. Tong: %.2f <<<", deal_profit, g_fund_all));
       SaveBudget();
    }
-
-   if(deal_profit > 0)
-   {
-      double profit_for_safe_day = deal_profit * (inp_emergency_profit_retention_day / 100.0);
-      double profit_for_budget_day = deal_profit - profit_for_safe_day;
-      g_safe_day += profit_for_safe_day;
-      g_budget_day += profit_for_budget_day;
-      double profit_for_safe_week = deal_profit * (inp_emergency_profit_retention_week / 100.0);
-      double profit_for_budget_week = deal_profit - profit_for_safe_week;
-      g_safe_week += profit_for_safe_week;
-      g_budget_week += profit_for_budget_week;
-      
-      // TÍCH LŨY QUỸ TỈA LỆNH
-      if(g_last_close_reason != CR_TACTICAL && g_last_close_reason != CR_EMERGENCY)
-      {
-         bool is_dca_am = (StringFind(deal_comment, "DCA AM") != -1);
-         bool is_initial = (StringFind(deal_comment, "Initial") != -1);
-         bool is_dca_duong = (StringFind(deal_comment, "DCA DUONG") != -1);
-         
-         if(is_dca_am || is_initial || is_dca_duong)
-         {
-            if(inp_take_profit_usd == 0)
-            {
-               if(deal_type == DEAL_TYPE_SELL)
-               {
-                  g_fund_trim_buy += deal_profit;
-                  Log("INFO", StringFormat(">>> QUY BUY +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_buy));
-                  SaveBudget();
-               }
-               else if(deal_type == DEAL_TYPE_BUY)
-               {
-                  g_fund_trim_sell += deal_profit;
-                  Log("INFO", StringFormat(">>> QUY SELL +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_sell));
-                  SaveBudget();
-               }
-            }
-         }
-      }
-   }
-   else
-   {
-      double loss_amount = -deal_profit;
-      switch(g_last_close_reason)
-      {
-         case CR_EMERGENCY:
-         {
-            g_trimmed_day += loss_amount; g_trimmed_week += loss_amount;
-            g_budget_day -= loss_amount; g_budget_week -= loss_amount;
-            Log("WARNING", StringFormat("Ke toan LO KHAN CAP: -%.2f.", loss_amount));
-            break;
-         }
-         case CR_TACTICAL:
-         {
-            double loss_for_safe_day = loss_amount * (inp_emergency_profit_retention_day / 100.0);
-            double loss_for_budget_day = loss_amount - loss_for_safe_day;
-            g_safe_day -= loss_for_safe_day; g_budget_day -= loss_for_budget_day;
-            double loss_for_safe_week = loss_amount * (inp_emergency_profit_retention_week / 100.0);
-            double loss_for_budget_week = loss_amount - loss_for_safe_week;
-            g_safe_week -= loss_for_safe_week; g_budget_week -= loss_for_budget_week;
-            Log("INFO", StringFormat("Ke toan LO TIA LENH: -%.2f.", loss_amount));
-            break;
-         }
-         default:
-         {
-            double loss_for_safe_day = loss_amount * (inp_emergency_profit_retention_day / 100.0);
-            double loss_for_budget_day = loss_amount - loss_for_safe_day;
-            g_safe_day -= loss_for_safe_day; g_budget_day -= loss_for_budget_day;
-            double loss_for_safe_week = loss_amount * (inp_emergency_profit_retention_week / 100.0);
-            double loss_for_budget_week = loss_amount - loss_for_safe_week;
-            g_safe_week -= loss_for_safe_week; g_budget_week -= loss_for_budget_week;
-            
-            // Trừ quỹ khi lệnh đóng lỗ do trailing/thủ công (CR_UNKNOWN)
-            if(g_last_close_reason == CR_UNKNOWN)
-            {
-               bool is_dca_am_loss = (StringFind(deal_comment, "DCA AM") != -1);
-               bool is_initial_loss = (StringFind(deal_comment, "Initial") != -1);
-               bool is_dca_duong_loss = (StringFind(deal_comment, "DCA DUONG") != -1);
-               if(is_dca_am_loss || is_initial_loss || is_dca_duong_loss)
-               {
-                  if(deal_type == DEAL_TYPE_SELL)
-                  {
-                     g_fund_trim_buy += deal_profit;
-                     Log("INFO", StringFormat(">>> QUY BUY %.2f (lo). Tong: %.2f <<<", deal_profit, g_fund_trim_buy));
-                  }
-                  else if(deal_type == DEAL_TYPE_BUY)
-                  {
-                     g_fund_trim_sell += deal_profit;
-                     Log("INFO", StringFormat(">>> QUY SELL %.2f (lo). Tong: %.2f <<<", deal_profit, g_fund_trim_sell));
-                  }
-                  SaveBudget();
-               }
-            }
-            
-            Log("INFO", StringFormat("Ke toan LO CHIEN THUAT: -%.2f.", loss_amount));
-            break;
-         }
-      }
-   }
-   Log("INFO", StringFormat("So sach cap nhat: KSN=%.2f, NSN=%.2f | KST=%.2f, NST=%.2f", g_safe_day, g_budget_day, g_safe_week, g_budget_week));
-   SaveBudget();
 }
 
 //+------------------------------------------------------------------+
@@ -288,7 +186,6 @@ void CloseAllPositionsByEA(const PositionInfo &positions[])
    int total = ArraySize(positions);
    Log("INFO", StringFormat("TP USD: Bat dau dong %d lenh (Async)...", total));
    
-   g_last_close_reason = CR_TACTICAL;
    int async_sent = 0;
    int failed = 0;
 
@@ -301,8 +198,6 @@ void CloseAllPositionsByEA(const PositionInfo &positions[])
       {
          if(PositionGetInteger(POSITION_MAGIC) == inp_magic_number && PositionGetString(POSITION_SYMBOL) == _Symbol)
          {
-            g_last_close_reason = CR_TACTICAL;
-            AddTacticalClose(ticket);
             if(trade.PositionClose(ticket))
                async_sent++;
             else
@@ -325,16 +220,6 @@ void SaveBudget()
 {
    string suffix = _Symbol + "_" + IntegerToString(inp_magic_number);
    
-   if(!GlobalVariableSet(PREFIX_BUDGET + "SafeDay_" + suffix, g_safe_day))     Log("ERROR", "Khong the luu SafeDay");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "BudgetDay_" + suffix, g_budget_day)) Log("ERROR", "Khong the luu BudgetDay");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "SafeWeek_" + suffix, g_safe_week))   Log("ERROR", "Khong the luu SafeWeek");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "BudgetWeek_" + suffix, g_budget_week)) Log("ERROR", "Khong the luu BudgetWeek");
-   
-   if(!GlobalVariableSet(PREFIX_BUDGET + "TrimmedDay_" + suffix, g_trimmed_day)) Log("ERROR", "Khong the luu TrimmedDay");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "TrimmedWeek_" + suffix, g_trimmed_week)) Log("ERROR", "Khong the luu TrimmedWeek");
-   
-   if(!GlobalVariableSet(PREFIX_BUDGET + "FundBuy_" + suffix, g_fund_trim_buy)) Log("ERROR", "Khong the luu FundBuy");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "FundSell_" + suffix, g_fund_trim_sell)) Log("ERROR", "Khong the luu FundSell");
    if(!GlobalVariableSet(PREFIX_BUDGET + "FundAll_" + suffix, g_fund_all)) Log("ERROR", "Khong the luu FundAll");
    
    GlobalVariableSet(PREFIX_BUDGET + "LastDay_" + suffix, (double)g_last_known_day);
@@ -347,28 +232,11 @@ void SaveBudget()
 void LoadBudget()
 {
    string suffix = _Symbol + "_" + IntegerToString(inp_magic_number);
-   string check_key = PREFIX_BUDGET + "BudgetDay_" + suffix;
+   string check_key = PREFIX_BUDGET + "FundAll_" + suffix;
    
    if(GlobalVariableCheck(check_key))
    {
-      g_safe_day = GlobalVariableGet(PREFIX_BUDGET + "SafeDay_" + suffix);
-      g_budget_day = GlobalVariableGet(PREFIX_BUDGET + "BudgetDay_" + suffix);
-      g_safe_week = GlobalVariableGet(PREFIX_BUDGET + "SafeWeek_" + suffix);
-      g_budget_week = GlobalVariableGet(PREFIX_BUDGET + "BudgetWeek_" + suffix);
-      g_trimmed_day = GlobalVariableGet(PREFIX_BUDGET + "TrimmedDay_" + suffix);
-      g_trimmed_week = GlobalVariableGet(PREFIX_BUDGET + "TrimmedWeek_" + suffix);
-      
-      if(GlobalVariableCheck(PREFIX_BUDGET + "FundBuy_" + suffix))
-          g_fund_trim_buy = GlobalVariableGet(PREFIX_BUDGET + "FundBuy_" + suffix);
-      else g_fund_trim_buy = 0.0;
-          
-      if(GlobalVariableCheck(PREFIX_BUDGET + "FundSell_" + suffix))
-          g_fund_trim_sell = GlobalVariableGet(PREFIX_BUDGET + "FundSell_" + suffix);
-      else g_fund_trim_sell = 0.0;
-           
-      if(GlobalVariableCheck(PREFIX_BUDGET + "FundAll_" + suffix))
-          g_fund_all = GlobalVariableGet(PREFIX_BUDGET + "FundAll_" + suffix);
-      else g_fund_all = 0.0;
+      g_fund_all = GlobalVariableGet(PREFIX_BUDGET + "FundAll_" + suffix);
        
       if(GlobalVariableCheck(PREFIX_BUDGET + "LastDay_" + suffix))
           g_last_known_day = (datetime)GlobalVariableGet(PREFIX_BUDGET + "LastDay_" + suffix);
@@ -382,6 +250,7 @@ void LoadBudget()
    }
    else
    {
+      g_fund_all = 0.0;
       g_last_known_day = GetStartOfDay();
       g_last_known_week_start = GetFinancialWeekStart();
       Log("INFO", "Khong tim thay du lieu Ngan sach cu tren F3. Su dung gia tri mac dinh (0).");

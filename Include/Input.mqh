@@ -40,63 +40,9 @@ input int    inp_pending_refill_threshold = 10;      // Số lệnh tối thiể
 input bool   inp_pending_auto_refill      = true;    // Tự động đặt thêm khi hết
 
 //===================================================================
-// = 5. TỈA LỆNH TỰ ĐỘNG BẢO VỆ VỐN                                =
+// = 5. SETTING MÔ PHỎNG ĐÁNH GIÁ (STRATEGY TESTER)                =
 //===================================================================
-// --- Chế độ tỉa lệnh ---
-enum ENUM_TRIM_MODE
-{
-   TRIM_MODE_SAME_SIDE  = 0,   // Tỉa cùng chiều (Quỹ BUY tỉa lỗ BUY)
-   TRIM_MODE_CROSS_SIDE = 1    // Tỉa chéo (Quỹ BUY tỉa lỗ SELL)
-};
-
-// --- Điều kiện kích hoạt tỉa lệnh ---
-enum ENUM_TRIM_TRIGGER
-{
-   TRIM_BY_COUNT    = 0,   // Theo số lệnh
-   TRIM_BY_DISTANCE = 1    // Theo khoảng cách pip
-};
-
-// --- Kiểu cơ chế tỉa lệnh ---
-enum ENUM_TRIM_STYLE
-{
-   TRIM_STYLE_FUND    = 0,   // Quỹ tích lũy (Gián tiếp)
-   TRIM_STYLE_RESCUE  = 1    // Rescue Fund (Trực tiếp - đóng lệnh lãi)
-};
-
-input group "--- 5. Tỉa Lệnh Mặc Định ---"
-input bool   inp_use_trimming          = true;      // Bật/Tắt tỉa lệnh
-input ENUM_TRIM_STYLE inp_trim_style   = TRIM_STYLE_FUND; // Kiểu cơ chế tỉa lệnh
-input ENUM_TRIM_MODE inp_trim_mode     = TRIM_MODE_SAME_SIDE; // Chế độ tỉa lệnh (quỹ)
-input ENUM_TRIM_TRIGGER inp_trim_trigger_mode = TRIM_BY_COUNT; // Điều kiện kích hoạt tỉa
-input int    inp_trim_trigger_level    = 10;        // Số lệnh để kích hoạt tỉa (BY_COUNT)
-input bool   inp_trim_count_both_sides = false;     // Kích hoạt tỉa dựa trên TỔNG lệnh Buy+Sell
-input double inp_trim_pip_distance     = 50.0;      // Khoảng cách pip kích hoạt tỉa (BY_DISTANCE)
-input double inp_trim_close_percentage = 30.0;      // % khối lượng muốn tỉa
-input double inp_trim_target_profit    = 5.0;       // Lợi nhuận mục tiêu sau khi tỉa
-
-//===================================================================
-// = 6. TỈA LỆNH KHẨN CẤP THEO VÙNG GẦN CHÁY TÀI KHOẢN             =
-//===================================================================
-// --- Kiểu tỉa khẩn cấp theo pip ---
-enum ENUM_PIP_TRIM_STYLE
-{
-   PIP_TRIM_SOFT = 0,   // Tỉa mềm (cần budget D/W)
-   PIP_TRIM_HARD = 1    // Tỉa cứng (đóng ngay không cần budget)
-};
-
-input group "--- 6. Tỉa Lệnh Khẩn Cấp ---"
-input ENUM_EMERGENCY_TRIM_MODE inp_emergency_trim_mode = ETM_DRAWDOWN; // Chế độ tỉa khẩn cấp
-input double inp_pip_emergency_threshold      = 100.0;    // Ngưỡng Pip kích hoạt (cho ETM_PIP)
-input ENUM_PIP_TRIM_STYLE inp_pip_trim_style  = PIP_TRIM_SOFT; // Kiểu tỉa theo pip
-input double inp_emergency_dd1_amount         = 2000.0;   // DD kích hoạt tỉa theo LÃI NGÀY
-input double inp_emergency_profit_retention_day = 50.0;   // % Lợi nhuận muốn giữ lại
-input double inp_emergency_dd2_amount         = 3000.0;   // DD kích hoạt tỉa theo LÃI TUẦN
-input double inp_emergency_profit_retention_week= 70.0;   // % Lợi nhuận muốn giữ lại
-
-//===================================================================
-// = 7. SETTING MÔ PHỎNG ĐÁNH GIÁ (STRATEGY TESTER)                =
-//===================================================================
-input group "--- 7. Tester Withdrawal Settings ---"
+input group "--- 5. Tester Withdrawal Settings ---"
 input bool   inp_tester_withdrawal_enabled   = false;  // Bật chế độ rút tiền ảo trong Tester
 input double inp_tester_base_balance         = 8000.0; // Số dư gốc mong muốn duy trì
 input double inp_tester_withdraw_threshold   = 1000.0; // Lợi nhuận đạt được để kích hoạt rút

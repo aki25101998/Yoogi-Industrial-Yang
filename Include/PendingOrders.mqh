@@ -65,73 +65,7 @@ void CleanRedundantPendingOrders()
     }
 }
 
-// Hàm suy ngược giá Initial từ lịch sử (trường hợp gắn EA vào giữa chừng khi Initial đã bị tỉa)
-double RecoverInitialPriceFromHistory(ENUM_POSITION_TYPE type)
-{
-    // B1: Tìm thời gian mở của lệnh cổ nhất ĐANG TỒN TẠI của chu kỳ hiện tại
-    datetime oldest_open_time = 0;
-    int total_pos = PositionsTotal();
-    for(int i = 0; i < total_pos; i++)
-    {
-        ulong pos_ticket = PositionGetTicket(i);
-        if(pos_ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol && PositionGetInteger(POSITION_MAGIC) == inp_magic_number)
-        {
-            if((ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE) == type)
-            {
-               datetime t = (datetime)PositionGetInteger(POSITION_TIME);
-               if(oldest_open_time == 0 || t < oldest_open_time) oldest_open_time = t;
-            }
-        }
-    }
 
-    if(!HistorySelect(0, TimeCurrent())) return 0.0;
-    
-    int total_deals = HistoryDealsTotal();
-    string target_cmt = (type == POSITION_TYPE_BUY) ? "Initial Buy" : "Initial Sell";
-    
-    // B2: Dùng vòng lặp ngược để tìm deal Initial gần nhất
-    for(int i = total_deals - 1; i >= 0; i--)
-    {
-        ulong ticket = HistoryDealGetTicket(i);
-        if(ticket > 0 && HistoryDealGetInteger(ticket, DEAL_MAGIC) == inp_magic_number && HistoryDealGetString(ticket, DEAL_SYMBOL) == _Symbol)
-        {
-            if(HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_IN)
-            {
-                string cmt = HistoryDealGetString(ticket, DEAL_COMMENT);
-                if(StringFind(cmt, target_cmt) != -1)
-                {
-                    // Lớp rào chắn: Kiểm tra xem lệnh Initial này có thuộc về chu kỳ cũ không?
-                    long pos_id = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
-                    datetime close_time = 0;
-                    
-                    // Tìm thời điểm đóng của lệnh Initial này
-                    for(int k = total_deals - 1; k >= 0; k--)
-                    {
-                        ulong out_ticket = HistoryDealGetTicket(k);
-                        if(HistoryDealGetInteger(out_ticket, DEAL_POSITION_ID) == pos_id && HistoryDealGetInteger(out_ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
-                        {
-                            close_time = (datetime)HistoryDealGetInteger(out_ticket, DEAL_TIME);
-                            break;
-                        }
-                    }
-                    
-                    // Nếu thời điểm đóng của Initial này diễn ra TRƯỚC khi lệnh cũ nhất của chu kỳ hiện tại được mở
-                    // -> Nó chắc chắn thuộc về chu kỳ cũ đã kết thúc. Không được sử dụng!
-                    if(oldest_open_time > 0 && close_time > 0 && close_time < oldest_open_time)
-                    {
-                        Log("INFO", StringFormat("SUY NGUOC LICH SU: Phat hien %s thuoc chu ky cu (CloseTime %s < OldestOpenTime %s). Bo qua!", target_cmt, TimeToString(close_time), TimeToString(oldest_open_time)));
-                        return 0.0; 
-                    }
-                
-                    double price = HistoryDealGetDouble(ticket, DEAL_PRICE);
-                    Log("INFO", StringFormat("SUY NGUOC LICH SU: Da phuc hoi gia %s la %.5f", target_cmt, price));
-                    return price;
-                }
-            }
-        }
-    }
-    return 0.0;
-}
 
 // Xóa tất cả các lệnh pending
 void DeleteAllPendingOrders()
@@ -200,8 +134,8 @@ bool HasPendingNearPrice(ENUM_POSITION_TYPE type, double target_price)
             if(type == POSITION_TYPE_BUY && (order_type == ORDER_TYPE_BUY_STOP || order_type == ORDER_TYPE_BUY_LIMIT)) is_match = true;
             if(type == POSITION_TYPE_SELL && (order_type == ORDER_TYPE_SELL_STOP || order_type == ORDER_TYPE_SELL_LIMIT)) is_match = true;
             
-            // Chỉ check các Pending mang mác DCA DUONG (hoặc Initial)
-            if(is_match && StringFind(OrderGetString(ORDER_COMMENT), "DCA DUONG") != -1)
+            // Chỉ check các Pending mang mác DCA DUONG (hoặc Initial) -> Đã loại bỏ filter, tất cả đều là Grid nodes
+            if(is_match)
             {
                 if(MathAbs(OrderGetDouble(ORDER_PRICE_OPEN) - target_price) < tol) return true;
             }
@@ -231,9 +165,8 @@ void RecyclePendingOrders(ENUM_POSITION_TYPE type, double initial_price)
         if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
         {
             ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
-            bool is_dca_duong = (StringFind(OrderGetString(ORDER_COMMENT), "DCA DUONG") != -1);
             
-            if(type == POSITION_TYPE_BUY && (order_type == ORDER_TYPE_BUY_STOP || order_type == ORDER_TYPE_BUY_LIMIT) && is_dca_duong)
+            if(type == POSITION_TYPE_BUY && (order_type == ORDER_TYPE_BUY_STOP || order_type == ORDER_TYPE_BUY_LIMIT))
             {
                 if(order_type == ORDER_TYPE_BUY_STOP) {
                     int arr_sz = ArraySize(old_tickets);
@@ -243,7 +176,7 @@ void RecyclePendingOrders(ENUM_POSITION_TYPE type, double initial_price)
                     trade.OrderDelete(ticket); // Khong the sua Limit thanh Stop -> Xoa
                 }
             }
-            else if(type == POSITION_TYPE_SELL && (order_type == ORDER_TYPE_SELL_STOP || order_type == ORDER_TYPE_SELL_LIMIT) && is_dca_duong)
+            else if(type == POSITION_TYPE_SELL && (order_type == ORDER_TYPE_SELL_STOP || order_type == ORDER_TYPE_SELL_LIMIT))
             {
                 if(order_type == ORDER_TYPE_SELL_STOP) {
                     int arr_sz = ArraySize(old_tickets);
@@ -317,27 +250,7 @@ void RefillStopOrdersIfNeeded(ENUM_POSITION_TYPE type, double initial_price)
         bool found = (furthest_price != 0);
         
         if(!found) {
-            // Thay vi lay market price lam goc (initial_price), ta uu tien lay goc tu F3 neu co
-            string prefix = (type == POSITION_TYPE_BUY) ? "LastInitialBuyPrice_" : "LastInitialSellPrice_";
-            string f3_name = prefix + _Symbol + "_" + IntegerToString(inp_magic_number);
-            if(GlobalVariableCheck(f3_name) && GlobalVariableGet(f3_name) > 0)
-            {
-                furthest_price = GlobalVariableGet(f3_name); // Gia tri F3
-            }
-            else
-            {
-                double recovered_price = RecoverInitialPriceFromHistory(type);
-                if(recovered_price > 0)
-                {
-                    GlobalVariableSet(f3_name, recovered_price);
-                    furthest_price = recovered_price;
-                }
-                else
-                {
-                    furthest_price = initial_price; // Gia thi truong neu chua co Initial Trade nao trong F3 (va ca history)
-                    GlobalVariableSet(f3_name, -1.0); // Danh dau de khoi tim lai lan sau neu hoan toan khong co
-                }
-            }
+            furthest_price = initial_price; // Day la highest_buy_price hoac lowest_sell_price duoc truyen vao
         }
         
         double lot = inp_lot_dca_duong;
@@ -379,47 +292,15 @@ void HealGridGaps(PositionInfo &positions[], PendingInfo &pending_orders[])
         double price_list[];
         int price_count = 0;
 
-        // --- BUOC 0: LAY GIA KHOI DIEM TU F3 DE GIU GOC GRID ---
-        string prefix = (current_type == POSITION_TYPE_BUY) ? "LastInitialBuyPrice_" : "LastInitialSellPrice_";
-        string f3_name = prefix + _Symbol + "_" + IntegerToString(inp_magic_number);
-        if(GlobalVariableCheck(f3_name))
-        {
-            double f3_price = GlobalVariableGet(f3_name);
-            if(f3_price > 0)
-            {
-               ArrayResize(price_list, price_count + 1);
-               price_list[price_count] = f3_price;
-               price_count++;
-            }
-        }
-        else
-        {
-            // NEW LOGIC: Suy nguoc he toa do neu F3 bi mat
-            double recovered_price = RecoverInitialPriceFromHistory(current_type);
-            if(recovered_price > 0)
-            {
-               GlobalVariableSet(f3_name, recovered_price);
-               ArrayResize(price_list, price_count + 1);
-               price_list[price_count] = recovered_price;
-               price_count++;
-            }
-            else 
-            {
-               GlobalVariableSet(f3_name, -1.0); // set -1 de khong scan lich su nua neu thuc su k co
-            }
-        }
-        
+
         // 1. Gom Position
         for(int i = 0; i < pos_total; i++)
         {
             if(positions[i].type == current_type)
             {
-                if(StringFind(positions[i].comment, "DCA DUONG") != -1 || StringFind(positions[i].comment, "Initial") != -1)
-                {
-                    ArrayResize(price_list, price_count + 1);
-                    price_list[price_count] = positions[i].open_price;
-                    price_count++;
-                }
+                ArrayResize(price_list, price_count + 1);
+                price_list[price_count] = positions[i].open_price;
+                price_count++;
             }
         }
         
@@ -428,12 +309,9 @@ void HealGridGaps(PositionInfo &positions[], PendingInfo &pending_orders[])
         {
             if(pending_orders[i].position_type == current_type)
             {
-                if(StringFind(pending_orders[i].comment, "DCA DUONG") != -1)
-                {
-                    ArrayResize(price_list, price_count + 1);
-                    price_list[price_count] = pending_orders[i].open_price;
-                    price_count++;
-                }
+                ArrayResize(price_list, price_count + 1);
+                price_list[price_count] = pending_orders[i].open_price;
+                price_count++;
             }
         }
         

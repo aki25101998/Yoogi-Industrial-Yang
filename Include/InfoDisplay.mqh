@@ -54,48 +54,6 @@ void CreateDisplay()
     CreateLabel(INFO_PREFIX+"Title", "Yoogi Yin Yang 1.5", x_offset + 250, y, corner, font_size, c_text); 
     y += line_height;
 
-    // --- KHỐI DÒNG: DCA Dương Buy ---
-    CreateLabel(INFO_PREFIX+"DcaDuongBuy_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaDuongBuy_Text", "Tổng lệnh DCA Dương Buy:", text_x, y, corner, font_size, c_buy);
-    CreateLabel(INFO_PREFIX+"DcaDuongBuy_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text); 
-    CreateLabel(INFO_PREFIX+"DcaDuongBuy_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
-
-    // --- KHỐI DÒNG: DCA Âm Sell ---
-    CreateLabel(INFO_PREFIX+"DcaAmSell_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaAmSell_Text", "Tổng lệnh DCA Âm Sell:", text_x, y, corner, font_size, c_sell);
-    CreateLabel(INFO_PREFIX+"DcaAmSell_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaAmSell_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
-
-    // --- KHỐI DÒNG: DCA Dương Sell ---
-    CreateLabel(INFO_PREFIX+"DcaDuongSell_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaDuongSell_Text", "Tổng lệnh DCA Dương Sell:", text_x, y, corner, font_size, c_sell);
-    CreateLabel(INFO_PREFIX+"DcaDuongSell_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaDuongSell_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
-
-    // --- KHỐI DÒNG: DCA Âm Buy ---
-    CreateLabel(INFO_PREFIX+"DcaAmBuy_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaAmBuy_Text", "Tổng lệnh DCA Âm Buy:", text_x, y, corner, font_size, c_buy);
-    CreateLabel(INFO_PREFIX+"DcaAmBuy_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaAmBuy_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
-    
-    // --- KHỐI DÒNG: Kẻ ngang phân cách ---
-    CreateLabel(INFO_PREFIX+"SeparatorDca_Left", "+", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"SeparatorDca_Line_1", border_segment_1, pipe_x + 9, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"SeparatorDca_Line_2", border_segment_2, border_segment_2_start_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"SeparatorDca_Right", "+", end_pipe_x, y, corner, font_size, c_text);
-    y += line_height;
-    
-    // --- KHỐI DÒNG: DCA HÀNG Buy ---
-    CreateLabel(INFO_PREFIX+"DcaHangBuy_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaHangBuy_Text", "Tổng lệnh Initial Buy:", text_x, y, corner, font_size, c_hang);
-    CreateLabel(INFO_PREFIX+"DcaHangBuy_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaHangBuy_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
-
-    // --- KHỐI DÒNG: DCA HÀNG Sell ---
-    CreateLabel(INFO_PREFIX+"DcaHangSell_Start", "|", pipe_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaHangSell_Text", "Tổng lệnh Initial Sell:", text_x, y, corner, font_size, c_hang);
-    CreateLabel(INFO_PREFIX+"DcaHangSell_Value", "0 (0.00 lots) | +0.00", value_x, y, corner, font_size, c_text);
-    CreateLabel(INFO_PREFIX+"DcaHangSell_End", "|", end_pipe_x, y, corner, font_size, c_text); y += line_height;
     
     // --- KHỐI DÒNG: Tiêu đề Account ---
     CreateLabel(INFO_PREFIX+"HeaderAccount_Left", "+", pipe_x, y, corner, font_size, c_text);
@@ -163,14 +121,6 @@ void CreateDisplay()
 void UpdateDisplay(const PositionInfo &positions[])
 {
     // --- 1. Thu thập dữ liệu lệnh ---
-    // Biến cho các nhóm chi tiết
-    int dca_duong_buy_count = 0, dca_duong_sell_count = 0, dca_am_buy_count = 0, dca_am_sell_count = 0;
-    double dca_duong_buy_lots = 0, dca_duong_sell_lots = 0, dca_am_buy_lots = 0, dca_am_sell_lots = 0;
-    int dca_hang_buy_count = 0, dca_hang_sell_count = 0;
-    double dca_hang_buy_lots = 0, dca_hang_sell_lots = 0;
-    double dca_duong_buy_profit = 0, dca_duong_sell_profit = 0, dca_am_buy_profit = 0, dca_am_sell_profit = 0;
-    double dca_hang_buy_profit = 0, dca_hang_sell_profit = 0;
-    
     // Biến tính toán tổng quan cho mỗi phe
     int total_buy_pos = 0, total_sell_pos = 0;
     double total_buy_lots = 0, total_sell_lots = 0;
@@ -191,36 +141,11 @@ void UpdateDisplay(const PositionInfo &positions[])
             total_sell_lots += positions[i].volume;
             total_sell_profit += positions[i].profit_swap;
         }
-        
-        // --- Phân loại chi tiết theo comment ---
-        if(StringFind(positions[i].comment, "DCA DUONG") != -1)
-        {
-            if(positions[i].type == POSITION_TYPE_BUY) { dca_duong_buy_count++; dca_duong_buy_lots += positions[i].volume; dca_duong_buy_profit += positions[i].profit_swap; }
-            else { dca_duong_sell_count++; dca_duong_sell_lots += positions[i].volume; dca_duong_sell_profit += positions[i].profit_swap; }
-        }
-        else if(StringFind(positions[i].comment, "DCA AM") != -1)
-        {
-            if(positions[i].type == POSITION_TYPE_BUY) { dca_am_buy_count++; dca_am_buy_lots += positions[i].volume; dca_am_buy_profit += positions[i].profit_swap; }
-            else { dca_am_sell_count++; dca_am_sell_lots += positions[i].volume; dca_am_sell_profit += positions[i].profit_swap; }
-        }
-        else if(StringFind(positions[i].comment, "Initial") != -1)
-        {
-            if(positions[i].type == POSITION_TYPE_BUY) { dca_hang_buy_count++; dca_hang_buy_lots += positions[i].volume; dca_hang_buy_profit += positions[i].profit_swap; }
-            else { dca_hang_sell_count++; dca_hang_sell_lots += positions[i].volume; dca_hang_sell_profit += positions[i].profit_swap; }
-        }
     }
 
     // --- 2. Cập nhật các label ---
     #define UPDATE_LABEL(name, count, lots, profit) \
       ObjectSetString(0, INFO_PREFIX+name, OBJPROP_TEXT, StringFormat("%d (%.2f lots) | %s%.2f", count, lots, (profit >= 0 ? "+" : ""), profit))
-
-    // Cập nhật các dòng chi tiết
-    UPDATE_LABEL("DcaDuongBuy_Value", dca_duong_buy_count, dca_duong_buy_lots, dca_duong_buy_profit);
-    UPDATE_LABEL("DcaDuongSell_Value", dca_duong_sell_count, dca_duong_sell_lots, dca_duong_sell_profit);
-    UPDATE_LABEL("DcaAmBuy_Value", dca_am_buy_count, dca_am_buy_lots, dca_am_buy_profit);
-    UPDATE_LABEL("DcaAmSell_Value", dca_am_sell_count, dca_am_sell_lots, dca_am_sell_profit);
-    UPDATE_LABEL("DcaHangBuy_Value", dca_hang_buy_count, dca_hang_buy_lots, dca_hang_buy_profit);
-    UPDATE_LABEL("DcaHangSell_Value", dca_hang_sell_count, dca_hang_sell_lots, dca_hang_sell_profit);
     
     // Cập nhật 2 dòng tổng quan
     UPDATE_LABEL("TotalBuy_Value", total_buy_pos, total_buy_lots, total_buy_profit);

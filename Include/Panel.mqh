@@ -9,6 +9,7 @@
 #define BTN_CLOSE_ALL_NAME   "YYY_Btn_CloseAll"
 #define BTN_CLOSE_BUY_NAME   "YYY_Btn_CloseBuy"
 #define BTN_CLOSE_SELL_NAME  "YYY_Btn_CloseSell"
+#define BTN_CLOSE_ALL_PENDING_NAME "YYY_Btn_ClosePending"
 
 //--- Khai báo các hàm sẽ được gọi từ tệp .mq5 chính
 void CreatePanel(); // <<< CẬP NHẬT
@@ -84,6 +85,22 @@ void CreatePanel()
     ObjectSetInteger(0, BTN_CLOSE_SELL_NAME, OBJPROP_STATE, false);
     ObjectSetInteger(0, BTN_CLOSE_SELL_NAME, OBJPROP_FONTSIZE, 10);
 
+    // --- Cập nhật vị trí Y cho hàng tiếp theo ---
+    y += btn_height + 2;
+
+    // --- Nút 4: Đóng lệnh Pending (full width) ---
+    ObjectCreate(0, BTN_CLOSE_ALL_PENDING_NAME, OBJ_BUTTON, 0, 0, 0);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_XDISTANCE, x_offset);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_YDISTANCE, y);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_XSIZE, btn_full_width);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_YSIZE, btn_height);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_CORNER, corner);
+    ObjectSetString(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_TEXT, "Xóa tất cả Pending");
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_COLOR, clrWhite);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_BGCOLOR, clrDarkOrange);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_STATE, false);
+    ObjectSetInteger(0, BTN_CLOSE_ALL_PENDING_NAME, OBJPROP_FONTSIZE, 10);
+
     ChartRedraw();
 }
 
@@ -95,6 +112,7 @@ void DeletePanel()
     ObjectDelete(0, BTN_CLOSE_ALL_NAME);
     ObjectDelete(0, BTN_CLOSE_BUY_NAME);
     ObjectDelete(0, BTN_CLOSE_SELL_NAME);
+    ObjectDelete(0, BTN_CLOSE_ALL_PENDING_NAME);
     ChartRedraw();
 }
 
@@ -124,6 +142,11 @@ void OnPanelChartEvent(const int id, const long &lparam, const double &dparam, c
             Log("INFO", "Nút [Đóng lệnh Sell] được nhấn.");
             CloseSellPositions();
         }
+        else if(sparam == BTN_CLOSE_ALL_PENDING_NAME)
+        {
+            Log("INFO", "Nút [Xóa tất cả Pending] được nhấn.");
+            CloseAllPendingOrdersOnly();
+        }
 
         ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
         ChartRedraw();
@@ -136,6 +159,13 @@ void OnPanelChartEvent(const int id, const long &lparam, const double &dparam, c
 //+------------------------------------------------------------------+
 // Forward declaration for Pending Orders
 void DeleteAllPendingOrders();
+
+void CloseAllPendingOrdersOnly()
+{
+    Log("INFO", "Panel: Xoa tat ca lenh Pending...");
+    DeleteAllPendingOrders();
+    Log("INFO", "Panel: Da hoan tat xoa tat ca lenh Pending.");
+}
 
 void CloseAllPositions()
 {

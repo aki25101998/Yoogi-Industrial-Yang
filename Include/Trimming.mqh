@@ -94,6 +94,9 @@ void GetRescueFund(
       
       if(all_positions[i].type == fund_source_type && all_positions[i].profit_swap > 0)
       {
+         // KHONG DUOC PHEP lay lenh Initial dang lai de lam quy cuu ho
+         if(StringFind(all_positions[i].comment, "Initial") != -1) continue;
+         
          int last = ArraySize(fund_array);
          ArrayResize(fund_array, last + 1);
          fund_array[last].ticket = all_positions[i].ticket;
@@ -127,11 +130,11 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
    }
    // BY_DISTANCE: khong can kiem tra so lenh, chi can co lenh du xa
 
-   // Buoc 2: Tim lenh lo xa nhat (oldest losing position)
+   // Buoc 2: Tim lenh lo nang nhat (biggest losing position)
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   datetime oldest_time = D'3000.01.01';
+   double biggest_loss = 0;
 
    for(int i=0; i<ArraySize(positions); i++)
    {
@@ -142,9 +145,13 @@ bool AttemptSmartTrim(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[]
          {
             if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
          }
-         if(positions[i].open_time < oldest_time)
+         
+         // KHONG DUOC PHEP chon Initial lam muc tieu tia
+         if(StringFind(positions[i].comment, "Initial") != -1) continue;
+
+         if(positions[i].profit_swap < biggest_loss)
          {
-            oldest_time = positions[i].open_time;
+            biggest_loss = positions[i].profit_swap;
             patient_ticket = positions[i].ticket;
             patient_profit = positions[i].profit_swap;
             patient_volume = positions[i].volume;
@@ -355,11 +362,14 @@ double AttemptEmergencyTrim(string period_type, double budget, const PositionInf
    ulong patient_ticket = 0;
    double patient_loss = 0;
    double patient_volume = 0;
-   datetime oldest_time = D'3000.01.01';
+   double biggest_loss = 0;
    for(int i=0; i < ArraySize(positions); i++) {
        if(positions[i].type == side_to_trim) {
-           if(positions[i].open_time < oldest_time && positions[i].profit_swap < 0) {
-               oldest_time = positions[i].open_time;
+           if(positions[i].profit_swap < biggest_loss) {
+               // KHONG DUOC PHEP chon Initial lam muc tieu tia
+               if(StringFind(positions[i].comment, "Initial") != -1) continue;
+               
+               biggest_loss = positions[i].profit_swap;
                patient_ticket = positions[i].ticket;
                patient_loss = positions[i].profit_swap;
                patient_volume = positions[i].volume;
@@ -442,6 +452,9 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
     // Duyet tung lenh de kiem tra khoang cach pip
     for(int i = 0; i < ArraySize(positions); i++)
     {
+        // KHONG DUOC PHEP chon Initial lam muc tieu tia
+        if(StringFind(positions[i].comment, "Initial") != -1) continue;
+        
         double pip_distance = 0;
         
         // Tinh khoang cach pip lo (chi pip am moi can tia)
@@ -564,11 +577,11 @@ void ManagePipBasedEmergencyTrim(const PositionInfo &positions[])
 bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
    if(!inp_use_trimming) return false;
-   // Buoc 1: Tim lenh DCA DUONG bi lo cu nhat
+   // Buoc 1: Tim lenh DCA DUONG bi lo nang nhat
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   datetime oldest_time = D'3000.01.01';
+   double biggest_loss = 0;
    
    int dca_duong_count = 0;
    int dca_duong_loss_count = 0;
@@ -586,9 +599,9 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
                if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
             }
             dca_duong_loss_count++;
-            if(positions[i].open_time < oldest_time)
+            if(positions[i].profit_swap < biggest_loss)
             {
-               oldest_time = positions[i].open_time;
+               biggest_loss = positions[i].profit_swap;
                patient_ticket = positions[i].ticket;
                patient_profit = positions[i].profit_swap;
                patient_volume = positions[i].volume;
@@ -710,12 +723,15 @@ bool AttemptTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &position
 //+------------------------------------------------------------------+
 bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   // VO HIEU HOA: Theo yeu cau, khong duoc phep tia Initial duoi bat ky hinh thuc nao
+   return false;
+   
    if(!inp_use_trimming) return false;
-   // Buoc 1: Tim lenh Initial bi lo cu nhat
+   // Buoc 1: Tim lenh Initial bi lo nang nhat
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   datetime oldest_time = D'3000.01.01';
+   double biggest_loss = 0;
    
    int initial_count = 0;
    int initial_loss_count = 0;
@@ -733,9 +749,9 @@ bool AttemptTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions
                if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
             }
             initial_loss_count++;
-            if(positions[i].open_time < oldest_time)
+            if(positions[i].profit_swap < biggest_loss)
             {
-               oldest_time = positions[i].open_time;
+               biggest_loss = positions[i].profit_swap;
                patient_ticket = positions[i].ticket;
                patient_profit = positions[i].profit_swap;
                patient_volume = positions[i].volume;
@@ -869,11 +885,11 @@ bool ExecuteRescueTrim(
    const PositionInfo &positions[]
 )
 {
-   // Buoc 1: Tim lenh lo cu nhat theo loai comment
+   // Buoc 1: Tim lenh lo nang nhat theo loai comment
    ulong patient_ticket = 0;
    double patient_profit = 0;
    double patient_volume = 0;
-   datetime oldest_time = D'3000.01.01';
+   double biggest_loss = 0;
 
    for(int i=0; i<ArraySize(positions); i++)
    {
@@ -886,9 +902,9 @@ bool ExecuteRescueTrim(
             {
                if(GetPipDistanceFromEntry(positions[i]) < inp_trim_pip_distance) continue;
             }
-            if(positions[i].open_time < oldest_time)
+            if(positions[i].profit_swap < biggest_loss)
             {
-               oldest_time = positions[i].open_time;
+               biggest_loss = positions[i].profit_swap;
                patient_ticket = positions[i].ticket;
                patient_profit = positions[i].profit_swap;
                patient_volume = positions[i].volume;
@@ -1007,6 +1023,9 @@ bool AttemptRescueTrimDcaDuong(ENUM_POSITION_TYPE p_type, const PositionInfo &po
 //+------------------------------------------------------------------+
 bool AttemptRescueTrimInitial(ENUM_POSITION_TYPE p_type, const PositionInfo &positions[])
 {
+   // VO HIEU HOA: Theo yeu cau, khong duoc phep tia Initial duoi bat ky hinh thuc nao
+   return false;
+   
    if(!inp_use_trimming) return false;
    return ExecuteRescueTrim(p_type, "Initial", "INITIAL", positions);
 }
