@@ -13,6 +13,7 @@
 #include "Include/Input.mqh"
 #include "Include/Globals.mqh"
 #include "Include/CoreLogic.mqh"
+#include "Include/Trimming.mqh"
 
 #include "Include/Panel.mqh"
 #include "Include/InfoDisplay.mqh"
@@ -246,12 +247,248 @@ void OnTick()
     
     ManageTesterWithdrawal();
 
+    // --- TIA KHAN CAP: CHAY MOI TICK (phan ung nhanh) ---
+    if(inp_emergency_trim_mode == ETM_PIP)
+    {
+        ManagePipBasedEmergencyTrim(positions);
+    }
+    else if(inp_emergency_trim_mode == ETM_DRAWDOWN)
+    {
+        ManageEmergencyTrimming(positions);
+    }
 
+    // --- LOGIC TIA LENH CHIEN THUAT (MOI TICK) ---
+    if(inp_use_trimming)
+    {
+        // --- LOC LO NHIEU NHAT CHO QUY ALL ---
+        bool allow_buy_trim = true;
+        bool allow_sell_trim = true;
+        
+        if(inp_take_profit_usd > 0)
+        {
+            if(total_buy_profit >= 0 && total_sell_profit >= 0)
+            {
+                allow_buy_trim = false;
+                allow_sell_trim = false;
+            }
+            else if(total_buy_profit < total_sell_profit)
+            {
+                allow_sell_trim = false; // Buy dang loi nang hon
+            }
+            else if(total_sell_profit < total_buy_profit)
+            {
+                allow_buy_trim = false; // Sell dang loi nang hon
+            }
+        }
+
+        // --- RESET QUY khi chuyen tu <trigger sang >=trigger (chi cho BY_COUNT) ---
+        if(inp_trim_trigger_mode == TRIM_BY_COUNT)
+        {
+            if(total_buy_pos >= inp_trim_trigger_level && g_prev_buy_count < inp_trim_trigger_level)
+            {
+                if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+                {
+                    g_fund_trim_sell = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (CROSS: BUY dat trigger %d) <<<", inp_trim_trigger_level));
+                }
+                else
+                {
+                    g_fund_trim_buy = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (so lenh tang tu %d len %d, dat trigger %d) <<<", g_prev_buy_count, total_buy_pos, inp_trim_trigger_level));
+                }
+                SaveBudget();
+            }
+            if(total_sell_pos >= inp_trim_trigger_level && g_prev_sell_count < inp_trim_trigger_level)
+            {
+                if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+                {
+                    g_fund_trim_buy = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (CROSS: SELL dat trigger %d) <<<", inp_trim_trigger_level));
+                }
+                else
+                {
+                    g_fund_trim_sell = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (so lenh tang tu %d len %d, dat trigger %d) <<<", g_prev_sell_count, total_sell_pos, inp_trim_trigger_level));
+                }
+                SaveBudget();
+            }
+        }
+        // --- RESET QUY khi lenh lo dat pip distance (chi cho BY_DISTANCE) ---
+        else if(inp_trim_trigger_mode == TRIM_BY_DISTANCE)
+        {
+            bool buy_has_distance = false;
+            bool sell_has_distance = false;
+            for(int i = 0; i < ArraySize(positions); i++)
+            {
+                if(positions[i].profit_swap < 0)
+                {
+                    double pip_dist = GetPipDistanceFromEntry(positions[i]);
+                    if(pip_dist >= inp_trim_pip_distance)
+                    {
+                        if(positions[i].type == POSITION_TYPE_BUY) buy_has_distance = true;
+                        else sell_has_distance = true;
+                    }
+                }
+            }
+            
+            if(buy_has_distance && !g_buy_distance_triggered)
+            {
+                g_buy_distance_triggered = true;
+                if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+                {
+                    g_fund_trim_sell = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (CROSS: BUY dat %.0f pip) <<<", inp_trim_pip_distance));
+                }
+                else
+                {
+                    g_fund_trim_buy = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (BUY dat %.0f pip) <<<", inp_trim_pip_distance));
+                }
+                SaveBudget();
+            }
+            else if(!buy_has_distance && g_buy_distance_triggered)
+            {
+                g_buy_distance_triggered = false;
+            }
+            
+            if(sell_has_distance && !g_sell_distance_triggered)
+            {
+                g_sell_distance_triggered = true;
+                if(inp_trim_mode == TRIM_MODE_CROSS_SIDE)
+                {
+                    g_fund_trim_buy = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY BUY = 0 (CROSS: SELL dat %.0f pip) <<<", inp_trim_pip_distance));
+                }
+                else
+                {
+                    g_fund_trim_sell = 0;
+                    Log("INFO", StringFormat(">>> RESET QUY SELL = 0 (SELL dat %.0f pip) <<<", inp_trim_pip_distance));
+                }
+                SaveBudget();
+            }
+            else if(!sell_has_distance && g_sell_distance_triggered)
+            {
+                g_sell_distance_triggered = false;
+            }
+        }
+
+        // ============================================================
+        // CROSS TRIM DISPATCH
+        // ============================================================
+        bool cross_trim_handled = false;
+        
+        if(inp_trim_mode == TRIM_MODE_CROSS_SIDE && total_buy_pos > 0 && total_sell_pos > 0)
+        {
+            ENUM_POSITION_TYPE losing_side = POSITION_TYPE_BUY;
+            bool has_losing_side = false;
+            
+            if(total_buy_profit < 0 || total_sell_profit < 0)
+            {
+                if(total_buy_profit < total_sell_profit)
+                {
+                    losing_side = POSITION_TYPE_BUY;
+                    has_losing_side = allow_buy_trim;
+                }
+                else if(total_sell_profit < total_buy_profit)
+                {
+                    losing_side = POSITION_TYPE_SELL;
+                    has_losing_side = allow_sell_trim;
+                }
+            }
+            
+            if(has_losing_side)
+            {
+                bool trigger_met = false;
+                int losing_count = (losing_side == POSITION_TYPE_BUY) ? total_buy_pos : total_sell_pos;
+                
+                if(inp_trim_trigger_mode == TRIM_BY_COUNT)
+                {
+                    int check_count = inp_trim_count_both_sides ? (total_buy_pos + total_sell_pos) : losing_count;
+                    trigger_met = (check_count >= inp_trim_trigger_level);
+                }
+                else if(inp_trim_trigger_mode == TRIM_BY_DISTANCE)
+                {
+                    trigger_met = (losing_count > 0);
+                }
+                
+                if(trigger_met)
+                {
+                    if(HasLossOfType(losing_side, "DCA DUONG", positions))
+                    {
+                        if(inp_trim_style == TRIM_STYLE_RESCUE)
+                            AttemptRescueTrimDcaDuong(losing_side, positions);
+                        else
+                            AttemptTrimDcaDuong(losing_side, positions);
+                    }
+                    else if(HasLossOfType(losing_side, "Initial", positions))
+                    {
+                        if(inp_trim_style == TRIM_STYLE_RESCUE)
+                            AttemptRescueTrimInitial(losing_side, positions);
+                        else
+                            AttemptTrimInitial(losing_side, positions);
+                    }
+                    
+                    cross_trim_handled = true;
+                }
+            }
+        }
+
+        // --- Phe BUY (Same-side Trim) ---
+        if(!cross_trim_handled && allow_buy_trim && 
+           ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_buy_pos >= inp_trim_trigger_level) ||
+           (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_buy_pos > 0)))
+        {
+            bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_BUY, "DCA DUONG", positions);
+            bool has_initial_loss = HasLossOfType(POSITION_TYPE_BUY, "Initial", positions);
+            
+            if(has_dca_duong_loss)
+            {
+                if(inp_trim_style == TRIM_STYLE_RESCUE)
+                    AttemptRescueTrimDcaDuong(POSITION_TYPE_BUY, positions);
+                else
+                    AttemptTrimDcaDuong(POSITION_TYPE_BUY, positions);
+            }
+            else if(has_initial_loss)
+            {
+                if(inp_trim_style == TRIM_STYLE_RESCUE)
+                    AttemptRescueTrimInitial(POSITION_TYPE_BUY, positions);
+                else
+                    AttemptTrimInitial(POSITION_TYPE_BUY, positions);
+            }
+        }
+
+        // --- Phe SELL (Same-side Trim) ---
+        if(!cross_trim_handled && allow_sell_trim && 
+           ((inp_trim_trigger_mode == TRIM_BY_COUNT && total_sell_pos >= inp_trim_trigger_level) ||
+           (inp_trim_trigger_mode == TRIM_BY_DISTANCE && total_sell_pos > 0)))
+        {
+            bool has_dca_duong_loss = HasLossOfType(POSITION_TYPE_SELL, "DCA DUONG", positions);
+            bool has_initial_loss = HasLossOfType(POSITION_TYPE_SELL, "Initial", positions);
+            
+            if(has_dca_duong_loss)
+            {
+                if(inp_trim_style == TRIM_STYLE_RESCUE)
+                    AttemptRescueTrimDcaDuong(POSITION_TYPE_SELL, positions);
+                else
+                    AttemptTrimDcaDuong(POSITION_TYPE_SELL, positions);
+            }
+            else if(has_initial_loss)
+            {
+                if(inp_trim_style == TRIM_STYLE_RESCUE)
+                    AttemptRescueTrimInitial(POSITION_TYPE_SELL, positions);
+                else
+                    AttemptTrimInitial(POSITION_TYPE_SELL, positions);
+            }
+        }
+    }
+
+    // --- Luu lai so lenh cho tick sau ---
+    g_prev_buy_count = total_buy_pos;
+    g_prev_sell_count = total_sell_pos;
 
     CheckAndOpenInitialTrades(total_buy_pos, total_sell_pos);
     ManageBuyPositions(positions, total_buy_pos, total_buy_profit, total_sell_profit, highest_buy_price, lowest_buy_price);
     ManageSellPositions(positions, total_sell_pos, total_buy_profit, total_sell_profit, highest_sell_price, lowest_sell_price);
-    
 
     
     // --- Cập nhật giao diện ---
