@@ -285,14 +285,27 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
 void CloseAllPositionsByEA(const PositionInfo &positions[])
 {
    int total = ArraySize(positions);
-   Log("INFO", StringFormat("TP USD: Bat dau dong %d lenh (Async)...", total));
+   Log("INFO", StringFormat("TP USD: Bat dau dong %d lenh + xoa pending (Async)...", total));
    
    g_last_close_reason = CR_TACTICAL;
    int async_sent = 0;
+   int pending_deleted = 0;
    int failed = 0;
 
    trade.SetAsyncMode(true);
    
+   // BƯỚC 1: XÓA TẤT CẢ PENDING ORDERS TRƯỚC (bịt vòi - chặn lệnh mới khớp)
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = OrderGetTicket(i);
+      if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
+      {
+         if(trade.OrderDelete(ticket))
+            pending_deleted++;
+      }
+   }
+   
+   // BƯỚC 2: ĐÓNG TẤT CẢ POSITIONS (tát nước - chốt lợi nhuận)
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
       ulong ticket = PositionGetTicket(i);
@@ -314,7 +327,7 @@ void CloseAllPositionsByEA(const PositionInfo &positions[])
    }
    
    trade.SetAsyncMode(false);
-   Log("INFO", StringFormat("TP USD HOAN TAT: Da gui dong %d lenh (Async). Loi=%d.", async_sent, failed));
+   Log("INFO", StringFormat("TP USD HOAN TAT: Xoa %d pending, gui dong %d positions (Async). Loi=%d.", pending_deleted, async_sent, failed));
 }
 
 //+------------------------------------------------------------------+

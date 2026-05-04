@@ -219,18 +219,18 @@ void OnTick()
             CloseAllPositionsByEA(positions);
             
             int remaining_open = CountPositions(POSITION_TYPE_BUY) + CountPositions(POSITION_TYPE_SELL);
+            int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
             
-            if(remaining_open == 0)
+            if(remaining_open == 0 && remaining_pending == 0)
             {
-                int remaining_pending = CountPendingOrdersByType(POSITION_TYPE_BUY) + CountPendingOrdersByType(POSITION_TYPE_SELL);
-                Log("INFO", StringFormat("TP USD: Da dong tat ca positions. Reset QUY ALL. Pending con lai: %d (se duoc Recycle).", remaining_pending));
+                Log("INFO", "TP USD: Da dong tat ca positions va xoa tat ca pending. Reset QUY ALL.");
                 g_fund_all = 0.0;
                 g_is_closing_tp_usd = false;
                 SaveBudget();
             }
             else
             {
-                Log("WARNING", StringFormat("TP USD: Van con %d lenh mo. Se thu lai vao tick tiep theo.", remaining_open));
+                Log("WARNING", StringFormat("TP USD: Van con %d positions, %d pending. Se thu lai vao tick tiep theo.", remaining_open, remaining_pending));
                 UpdateDisplay(positions);
                 UpdateProfitDisplay();
                 ChartRedraw();
