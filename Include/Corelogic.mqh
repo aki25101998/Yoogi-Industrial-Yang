@@ -4,8 +4,10 @@
 //|              --- TỆP CHỨA LOGIC GIAO DỊCH CỐT LÕI ---            |
 //+------------------------------------------------------------------+
 
-// Forward declaration
+// Forward declarations
 bool HasPendingNearPrice(ENUM_POSITION_TYPE type, double target_price);
+bool HasPositionNearPrice(ENUM_POSITION_TYPE type, double target_price, const PositionInfo &positions[]);
+void DeletePendingNearPrice(ENUM_POSITION_TYPE type, double target_price);
 
 //+------------------------------------------------------------------+
 //| TÍNH TOÁN LOT CHO LỆNH TIẾP THEO (Dynamic Base Lot)              |
@@ -18,94 +20,128 @@ void UpdateDynamicBaseLot(const PositionInfo &positions[])
 }
 
 //+------------------------------------------------------------------+
-//| QUẢN LÝ LỆNH BUY (CHỈ DCA DƯƠNG)                                |
+//| QUẢN LÝ LỆNH BUY — DUAL MODE (Market-First + Pending-as-Backup) |
 //+------------------------------------------------------------------+
 void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, double total_buy_profit, double total_sell_profit, double hp, double lp)
 {
    if(!inp_enable_buy || total_buy_pos == 0) return;
+   if(!inp_enable_dca_duong) return;
 
    if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, hp);
+   
    double ca = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-
-   bool ad = ca >= (hp + (double)PipToPoints(g_current_dca_duong_distance) * _Point);
-
-   // Xóa TP khi có lệnh thứ 2 sắp mở
-   if(ad && total_buy_pos == 1)
+   double dist_points = (double)PipToPoints(g_current_dca_duong_distance) * _Point;
+   bool tp_removed = false;
+   
+   // Multi-level catch-up: mở TẤT CẢ mức DCA bị miss trong 1 tick
+   double current_hp = hp;
+   
+   while(ca >= current_hp + dist_points)
    {
-       if(inp_initial_tp_pips > 0)
-       {
-           for(int k = 0; k < ArraySize(positions); k++)
-           {
-               if(positions[k].type == POSITION_TYPE_BUY)
-               {
-                   if(PositionSelectByTicket(positions[k].ticket))
-                   {
-                       double t = PositionGetDouble(POSITION_TP);
-                       if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
-                   }
-                   break;
-               }
-           }
-       }
-   }
-
-   if(inp_enable_dca_duong && ad)
-   {
-      // HYBRID GUARD: Tránh trùng vào lệnh pending
-      if(inp_enable_pending_mode)
+      double target = current_hp + dist_points;
+      
+      // Xóa TP khi sắp mở lệnh thứ 2 (chỉ 1 lần)
+      if(!tp_removed && total_buy_pos == 1 && inp_initial_tp_pips > 0)
       {
-         double target_price = hp + (double)PipToPoints(g_current_dca_duong_distance) * _Point;
-         if(HasPendingNearPrice(POSITION_TYPE_BUY, target_price)) return;
+          for(int k = 0; k < ArraySize(positions); k++)
+          {
+              if(positions[k].type == POSITION_TYPE_BUY)
+              {
+                  if(PositionSelectByTicket(positions[k].ticket))
+                  {
+                      double t = PositionGetDouble(POSITION_TP);
+                      if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
+                  }
+                  break;
+              }
+          }
+          tp_removed = true;
       }
       
-      if(!trade.Buy(g_current_base_lot_buy, _Symbol, 0, 0, 0, "DCA DUONG")) 
-         Log("ERROR", StringFormat("Loi mo lenh DCA DUONG BUY. Ma loi: %d", (int)trade.ResultRetcode()));
+      // POSITION GUARD: Chỉ skip nếu đã có POSITION THẬT gần đó
+      if(HasPositionNearPrice(POSITION_TYPE_BUY, target, positions))
+      {
+         current_hp = target;
+         continue;
+      }
+      
+      // Mở Market Order trực tiếp
+      if(trade.Buy(g_current_base_lot_buy, _Symbol, 0, 0, 0, "DCA DUONG"))
+      {
+         total_buy_pos++;
+         // Proactive Cleanup: xóa pending trùng gần mức giá vừa mở
+         if(inp_enable_pending_mode) DeletePendingNearPrice(POSITION_TYPE_BUY, target);
+      }
+      else
+      {
+         Log("ERROR", StringFormat("Loi mo lenh DCA DUONG BUY tai muc %f. Ma loi: %d", target, (int)trade.ResultRetcode()));
+         break; // Dung lai neu lenh bi reject (tranh spam)
+      }
+      
+      current_hp = target;
    }
 }
 
 //+------------------------------------------------------------------+
-//| QUẢN LÝ LỆNH SELL (CHỈ DCA DƯƠNG)                                |
+//| QUẢN LÝ LỆNH SELL — DUAL MODE (Market-First + Pending-as-Backup) |
 //+------------------------------------------------------------------+
 void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, double total_buy_profit, double total_sell_profit, double hp, double lp)
 {
    if(!inp_enable_sell || total_sell_pos == 0) return;
+   if(!inp_enable_dca_duong) return;
 
    if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, lp);
+   
    double cb = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-
-   bool ad = cb <= (lp - (double)PipToPoints(g_current_dca_duong_distance) * _Point);
-
-   // Xóa TP khi có lệnh thứ 2 sắp mở
-   if(ad && total_sell_pos == 1)
+   double dist_points = (double)PipToPoints(g_current_dca_duong_distance) * _Point;
+   bool tp_removed = false;
+   
+   // Multi-level catch-up: mở TẤT CẢ mức DCA bị miss trong 1 tick
+   double current_lp = lp;
+   
+   while(cb <= current_lp - dist_points)
    {
-       if(inp_initial_tp_pips > 0)
-       {
-           for(int k = 0; k < ArraySize(positions); k++)
-           {
-               if(positions[k].type == POSITION_TYPE_SELL)
-               {
-                   if(PositionSelectByTicket(positions[k].ticket))
-                   {
-                       double t = PositionGetDouble(POSITION_TP);
-                       if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
-                   }
-                   break;
-               }
-           }
-       }
-   }
-
-   if(inp_enable_dca_duong && ad)
-   {
-      // HYBRID GUARD: Tránh trùng vào lệnh pending
-      if(inp_enable_pending_mode)
+      double target = current_lp - dist_points;
+      
+      // Xóa TP khi sắp mở lệnh thứ 2 (chỉ 1 lần)
+      if(!tp_removed && total_sell_pos == 1 && inp_initial_tp_pips > 0)
       {
-         double target_price = lp - (double)PipToPoints(g_current_dca_duong_distance) * _Point;
-         if(HasPendingNearPrice(POSITION_TYPE_SELL, target_price)) return;
+          for(int k = 0; k < ArraySize(positions); k++)
+          {
+              if(positions[k].type == POSITION_TYPE_SELL)
+              {
+                  if(PositionSelectByTicket(positions[k].ticket))
+                  {
+                      double t = PositionGetDouble(POSITION_TP);
+                      if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
+                  }
+                  break;
+              }
+          }
+          tp_removed = true;
       }
       
-      if(!trade.Sell(g_current_base_lot_sell, _Symbol, 0, 0, 0, "DCA DUONG")) 
-         Log("ERROR", StringFormat("Loi mo lenh DCA DUONG SELL. Ma loi: %d", (int)trade.ResultRetcode()));
+      // POSITION GUARD: Chỉ skip nếu đã có POSITION THẬT gần đó
+      if(HasPositionNearPrice(POSITION_TYPE_SELL, target, positions))
+      {
+         current_lp = target;
+         continue;
+      }
+      
+      // Mở Market Order trực tiếp
+      if(trade.Sell(g_current_base_lot_sell, _Symbol, 0, 0, 0, "DCA DUONG"))
+      {
+         total_sell_pos++;
+         // Proactive Cleanup: xóa pending trùng gần mức giá vừa mở
+         if(inp_enable_pending_mode) DeletePendingNearPrice(POSITION_TYPE_SELL, target);
+      }
+      else
+      {
+         Log("ERROR", StringFormat("Loi mo lenh DCA DUONG SELL tai muc %f. Ma loi: %d", target, (int)trade.ResultRetcode()));
+         break; // Dung lai neu lenh bi reject (tranh spam)
+      }
+      
+      current_lp = target;
    }
 }
 
@@ -157,8 +193,16 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
        }
    }
    
-   if(need_recycle_buy) RecyclePendingOrders(POSITION_TYPE_BUY, initial_buy_ask);
-   if(need_recycle_sell) RecyclePendingOrders(POSITION_TYPE_SELL, initial_sell_bid);
+    // Dat lenh Pending: Xen ke Buy/Sell khi ca 2 chieu cung khoi tao
+    if(need_recycle_buy && need_recycle_sell)
+    {
+        RecyclePendingOrdersInterleaved(initial_buy_ask, initial_sell_bid);
+    }
+    else
+    {
+        if(need_recycle_buy) RecyclePendingOrders(POSITION_TYPE_BUY, initial_buy_ask);
+        if(need_recycle_sell) RecyclePendingOrders(POSITION_TYPE_SELL, initial_sell_bid);
+    }
 }
 
 
@@ -187,34 +231,6 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
       double profit_for_budget_week = deal_profit - profit_for_safe_week;
       g_safe_week += profit_for_safe_week;
       g_budget_week += profit_for_budget_week;
-      
-      // <<< TICH LUY QUY TIA LENH >>>
-      // Chi cong vao quy khi lenh co loi va KHONG phai lenh dong do trimming/emergency
-      if(g_last_close_reason != CR_TACTICAL && g_last_close_reason != CR_EMERGENCY)
-      {
-         bool is_dca_am = (StringFind(deal_comment, "DCA AM") != -1);
-         bool is_initial = (StringFind(deal_comment, "Initial") != -1);
-         bool is_dca_duong = (StringFind(deal_comment, "DCA DUONG") != -1);
-         
-         if(is_dca_am || is_initial || is_dca_duong)
-         {
-            if(inp_take_profit_usd == 0) // Chi chay quy rieng khi TP USD dang tat
-            {
-               if(deal_type == DEAL_TYPE_SELL) // SELL close = BUY position was closed
-               {
-                  g_fund_trim_buy += deal_profit;
-                  Log("INFO", StringFormat(">>> QUY BUY +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_buy));
-                  SaveBudget();
-               }
-               else if(deal_type == DEAL_TYPE_BUY) // BUY close = SELL position was closed
-               {
-                  g_fund_trim_sell += deal_profit;
-                  Log("INFO", StringFormat(">>> QUY SELL +%.2f. Tong: %.2f <<<", deal_profit, g_fund_trim_sell));
-                  SaveBudget();
-               }
-            }
-         }
-      }
    }
    else
    {
@@ -229,16 +245,6 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
             break;
          }
          case CR_TACTICAL:
-         {
-            double loss_for_safe_day = loss_amount * (inp_emergency_profit_retention_day / 100.0);
-            double loss_for_budget_day = loss_amount - loss_for_safe_day;
-            g_safe_day -= loss_for_safe_day; g_budget_day -= loss_for_budget_day;
-            double loss_for_safe_week = loss_amount * (inp_emergency_profit_retention_week / 100.0);
-            double loss_for_budget_week = loss_amount - loss_for_safe_week;
-            g_safe_week -= loss_for_safe_week; g_budget_week -= loss_for_budget_week;
-            Log("INFO", StringFormat("Ke toan LO TIA LENH: -%.2f.", loss_amount));
-            break;
-         }
          default:
          {
             double loss_for_safe_day = loss_amount * (inp_emergency_profit_retention_day / 100.0);
@@ -247,30 +253,7 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
             double loss_for_safe_week = loss_amount * (inp_emergency_profit_retention_week / 100.0);
             double loss_for_budget_week = loss_amount - loss_for_safe_week;
             g_safe_week -= loss_for_safe_week; g_budget_week -= loss_for_budget_week;
-            
-            // <<< Tru quy khi DCA AM/Initial/DCA DUONG dong lo do trailing (CR_UNKNOWN) >>>
-            if(g_last_close_reason == CR_UNKNOWN)
-            {
-               bool is_dca_am_loss = (StringFind(deal_comment, "DCA AM") != -1);
-               bool is_initial_loss = (StringFind(deal_comment, "Initial") != -1);
-               bool is_dca_duong_loss = (StringFind(deal_comment, "DCA DUONG") != -1);
-               if(is_dca_am_loss || is_initial_loss || is_dca_duong_loss)
-               {
-                  if(deal_type == DEAL_TYPE_SELL)
-                  {
-                     g_fund_trim_buy += deal_profit;
-                     Log("INFO", StringFormat(">>> QUY BUY %.2f (lo trailing). Tong: %.2f <<<", deal_profit, g_fund_trim_buy));
-                  }
-                  else if(deal_type == DEAL_TYPE_BUY)
-                  {
-                     g_fund_trim_sell += deal_profit;
-                     Log("INFO", StringFormat(">>> QUY SELL %.2f (lo trailing). Tong: %.2f <<<", deal_profit, g_fund_trim_sell));
-                  }
-                  SaveBudget();
-               }
-            }
-            
-            Log("INFO", StringFormat("Ke toan LO CHIEN THUAT: -%.2f.", loss_amount));
+            Log("INFO", StringFormat("Ke toan LO: -%.2f.", loss_amount));
             break;
          }
       }
@@ -345,9 +328,7 @@ void SaveBudget()
    if(!GlobalVariableSet(PREFIX_BUDGET + "TrimmedDay_" + suffix, g_trimmed_day)) Log("ERROR", "Khong the luu TrimmedDay");
    if(!GlobalVariableSet(PREFIX_BUDGET + "TrimmedWeek_" + suffix, g_trimmed_week)) Log("ERROR", "Khong the luu TrimmedWeek");
    
-   // Luu quy tia lenh
-   if(!GlobalVariableSet(PREFIX_BUDGET + "FundBuy_" + suffix, g_fund_trim_buy)) Log("ERROR", "Khong the luu FundBuy");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "FundSell_" + suffix, g_fund_trim_sell)) Log("ERROR", "Khong the luu FundSell");
+   // Luu quy TP USD
    if(!GlobalVariableSet(PREFIX_BUDGET + "FundAll_" + suffix, g_fund_all)) Log("ERROR", "Khong the luu FundAll");
    
    GlobalVariableSet(PREFIX_BUDGET + "LastDay_" + suffix, (double)g_last_known_day);
@@ -371,17 +352,7 @@ void LoadBudget()
       g_trimmed_day = GlobalVariableGet(PREFIX_BUDGET + "TrimmedDay_" + suffix);
       g_trimmed_week = GlobalVariableGet(PREFIX_BUDGET + "TrimmedWeek_" + suffix);
       
-      // Load quy tia lenh
-      if(GlobalVariableCheck(PREFIX_BUDGET + "FundBuy_" + suffix))
-          g_fund_trim_buy = GlobalVariableGet(PREFIX_BUDGET + "FundBuy_" + suffix);
-      else
-          g_fund_trim_buy = 0.0;
-          
-      if(GlobalVariableCheck(PREFIX_BUDGET + "FundSell_" + suffix))
-          g_fund_trim_sell = GlobalVariableGet(PREFIX_BUDGET + "FundSell_" + suffix);
-      else
-          g_fund_trim_sell = 0.0;
-          
+      // Load quy TP USD
       if(GlobalVariableCheck(PREFIX_BUDGET + "FundAll_" + suffix))
           g_fund_all = GlobalVariableGet(PREFIX_BUDGET + "FundAll_" + suffix);
       else

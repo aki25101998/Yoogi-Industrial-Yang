@@ -144,6 +144,47 @@ bool HasPendingNearPrice(ENUM_POSITION_TYPE type, double target_price)
     return false;
 }
 
+// Kiểm tra xem đã có POSITION THẬT nào gần mức giá mục tiêu không (Position Guard)
+bool HasPositionNearPrice(ENUM_POSITION_TYPE type, double target_price, const PositionInfo &positions[])
+{
+    double dist_points = (double)PipToPoints(inp_dca_duong_distance_pips) * _Point;
+    double tol = dist_points * 0.5;
+    
+    for(int i = 0; i < ArraySize(positions); i++)
+    {
+        if(positions[i].type == type)
+        {
+            if(MathAbs(positions[i].open_price - target_price) < tol) return true;
+        }
+    }
+    return false;
+}
+
+// Xóa chủ động lệnh Pending gần mức giá vừa mở Market Order (Proactive Cleanup)
+void DeletePendingNearPrice(ENUM_POSITION_TYPE type, double target_price)
+{
+    double dist_points = (double)PipToPoints(inp_dca_duong_distance_pips) * _Point;
+    double tol = dist_points * 0.5;
+    
+    for(int i = OrdersTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = OrderGetTicket(i);
+        if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
+        {
+            ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+            bool is_match = false;
+            if(type == POSITION_TYPE_BUY && (order_type == ORDER_TYPE_BUY_STOP || order_type == ORDER_TYPE_BUY_LIMIT)) is_match = true;
+            if(type == POSITION_TYPE_SELL && (order_type == ORDER_TYPE_SELL_STOP || order_type == ORDER_TYPE_SELL_LIMIT)) is_match = true;
+            
+            if(is_match && MathAbs(OrderGetDouble(ORDER_PRICE_OPEN) - target_price) < tol)
+            {
+                Log("INFO", StringFormat("Proactive Cleanup: Xoa Pending tai %f (da mo Market Order gan do).", OrderGetDouble(ORDER_PRICE_OPEN)));
+                trade.OrderDelete(ticket);
+            }
+        }
+    }
+}
+
 // Tái chế Lệnh Pending thay vì Xóa / Tạo lại (Modify-in-RAM) giảm lượng request
 void RecyclePendingOrders(ENUM_POSITION_TYPE type, double initial_price)
 {
@@ -227,6 +268,116 @@ void RecyclePendingOrders(ENUM_POSITION_TYPE type, double initial_price)
     {
         trade.OrderDelete(old_tickets[i]);
     }
+}
+
+// Tái chế Lệnh Pending XEN KẼ giữa Buy và Sell (Buy1, Sell1, Buy2, Sell2, ...)
+void RecyclePendingOrdersInterleaved(double buy_initial_price, double sell_initial_price)
+{
+    if(!inp_enable_pending_mode || inp_pending_order_count <= 0) 
+    {
+        DeletePendingOrdersByType(POSITION_TYPE_BUY);
+        DeletePendingOrdersByType(POSITION_TYPE_SELL);
+        return;
+    }
+    
+    double lot = inp_lot_dca_duong;
+    double dist_points = (double)PipToPoints(inp_dca_duong_distance_pips) * _Point;
+    
+    // === PHASE 1: Thu thap lenh cu va don dep ===
+    ulong old_buy_tickets[];
+    ulong old_sell_tickets[];
+    
+    int total_orders = OrdersTotal();
+    for(int i = total_orders - 1; i >= 0; i--)
+    {
+        ulong ticket = OrderGetTicket(i);
+        if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
+        {
+            ENUM_ORDER_TYPE order_type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+            
+            if(order_type == ORDER_TYPE_BUY_STOP)
+            {
+                int arr_sz = ArraySize(old_buy_tickets);
+                ArrayResize(old_buy_tickets, arr_sz + 1);
+                old_buy_tickets[arr_sz] = ticket;
+            }
+            else if(order_type == ORDER_TYPE_BUY_LIMIT)
+            {
+                trade.OrderDelete(ticket);
+            }
+            else if(order_type == ORDER_TYPE_SELL_STOP)
+            {
+                int arr_sz = ArraySize(old_sell_tickets);
+                ArrayResize(old_sell_tickets, arr_sz + 1);
+                old_sell_tickets[arr_sz] = ticket;
+            }
+            else if(order_type == ORDER_TYPE_SELL_LIMIT)
+            {
+                trade.OrderDelete(ticket);
+            }
+        }
+    }
+    
+    // === PHASE 2: Dat lenh XEN KE (Buy1, Sell1, Buy2, Sell2, ...) ===
+    int buy_recycled = 0;
+    int sell_recycled = 0;
+    
+    for(int i = 1; i <= inp_pending_order_count; i++)
+    {
+        // --- BUY STOP ---
+        double buy_target = buy_initial_price + i * dist_points;
+        if(buy_recycled < ArraySize(old_buy_tickets))
+        {
+            ulong ticket_to_modify = old_buy_tickets[buy_recycled];
+            if(OrderSelect(ticket_to_modify))
+            {
+                double old_price = OrderGetDouble(ORDER_PRICE_OPEN);
+                if(MathAbs(old_price - buy_target) > _Point)
+                {
+                    if(!trade.OrderModify(ticket_to_modify, buy_target, 0, 0, ORDER_TIME_GTC, 0))
+                    {
+                        Log("WARNING", StringFormat("Interleaved: Modify Buy Stop failed: %d. Xoa lenh rac.", trade.ResultRetcode()));
+                        trade.OrderDelete(ticket_to_modify);
+                    }
+                }
+            }
+            buy_recycled++;
+        }
+        else
+        {
+            trade.BuyStop(lot, buy_target, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+        }
+        
+        // --- SELL STOP ---
+        double sell_target = sell_initial_price - i * dist_points;
+        if(sell_recycled < ArraySize(old_sell_tickets))
+        {
+            ulong ticket_to_modify = old_sell_tickets[sell_recycled];
+            if(OrderSelect(ticket_to_modify))
+            {
+                double old_price = OrderGetDouble(ORDER_PRICE_OPEN);
+                if(MathAbs(old_price - sell_target) > _Point)
+                {
+                    if(!trade.OrderModify(ticket_to_modify, sell_target, 0, 0, ORDER_TIME_GTC, 0))
+                    {
+                        Log("WARNING", StringFormat("Interleaved: Modify Sell Stop failed: %d. Xoa lenh rac.", trade.ResultRetcode()));
+                        trade.OrderDelete(ticket_to_modify);
+                    }
+                }
+            }
+            sell_recycled++;
+        }
+        else
+        {
+            trade.SellStop(lot, sell_target, _Symbol, 0.0, 0.0, ORDER_TIME_GTC, 0, "DCA DUONG");
+        }
+    }
+    
+    // === PHASE 3: Xoa lenh thua con lai ===
+    for(int i = buy_recycled; i < ArraySize(old_buy_tickets); i++)
+        trade.OrderDelete(old_buy_tickets[i]);
+    for(int i = sell_recycled; i < ArraySize(old_sell_tickets); i++)
+        trade.OrderDelete(old_sell_tickets[i]);
 }
 
 // (Da xoa: PlaceReplacementLimitOrder - da duoc thay the boi HealGridGaps)

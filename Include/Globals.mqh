@@ -127,16 +127,8 @@ double   g_budget_week = 0.0;
 double   g_trimmed_day = 0.0;
 double   g_trimmed_week = 0.0;
 
-//--- BIEN TOAN CUC (Quy Tia Lenh) ---
-double   g_fund_trim_buy = 0.0;   // Quy tia lenh cho phe Buy
-double   g_fund_trim_sell = 0.0;  // Quy tia lenh cho phe Sell
+//--- BIEN TOAN CUC (Quy TP USD) ---
 double   g_fund_all = 0.0;        // Quy All (tong hop khi TP USD > 0)
-
-//--- BIEN THEO DOI SO LENH (De detect khi vao che do trimming) ---
-int      g_prev_buy_count = 0;    // So lenh BUY lan tick truoc
-int      g_prev_sell_count = 0;   // So lenh SELL lan tick truoc
-bool     g_buy_distance_triggered = false;   // BUY da co lenh dat pip distance
-bool     g_sell_distance_triggered = false;  // SELL da co lenh dat pip distance
 
 bool     g_is_closing_tp_usd = false;
 
@@ -144,9 +136,6 @@ bool     g_is_closing_tp_usd = false;
 datetime g_last_known_day = 0;
 datetime g_last_known_week_start = 0;
 
-
-//--- CÁC CẤU TRÚC DỮ LIỆU ---
-struct TradeOrder { ulong ticket; double profit; datetime open_time; };
 
 
 //--- KHAI BÁO TRƯỚC CÁC HÀM TIỆN ÍCH ---
@@ -195,9 +184,6 @@ void InitializeGlobalVariables()
    g_last_known_day = 0;
    g_last_known_week_start = 0;
    
-   // Giu nguyen quy tia lenh (khong reset khi khoi dong)
-   g_buy_distance_triggered = false;
-   g_sell_distance_triggered = false;
    g_is_closing_tp_usd = false;
 }
 
