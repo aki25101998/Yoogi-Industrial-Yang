@@ -146,6 +146,30 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, do
 }
 
 //+------------------------------------------------------------------+
+//| KIỂM TRA THỜI GIAN THEO PHIÊN (Dùng giờ máy tính - TimeLocal)    |
+//+------------------------------------------------------------------+
+bool IsInTradingSession()
+{
+   MqlDateTime dt;
+   TimeToStruct(TimeLocal(), dt);
+   int h = dt.hour;
+   
+   if(inp_season_type == SUMMER_TIME)
+   {
+      if(h >= 6 && h < 8) return true;   // Phien A
+      if(h >= 14 && h < 17) return true; // Phien Au
+      if(h >= 19 && h < 21) return true; // Phien My
+   }
+   else // WINTER_TIME
+   {
+      if(h >= 6 && h < 8) return true;   // Phien A
+      if(h >= 15 && h < 17) return true; // Phien Au
+      if(h >= 20 && h < 22) return true; // Phien My
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
 //| KIỂM TRA VÀ MỞ LỆNH INITIAL                                      |
 //+------------------------------------------------------------------+
 void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
@@ -155,12 +179,23 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
    bool need_recycle_sell = false;
    double initial_sell_bid = 0;
 
+   // --- Kiem tra phien giao dich ---
+   bool session_active = true;
+   if(inp_enable_session)
+   {
+      session_active = IsInTradingSession();
+   }
+
    // --- Xử lý mở lệnh Initial BUY ---
    if(inp_enable_buy && total_buy_pos == 0)
    {
        if(inp_withdrawal_mode)
        {
           Log("INFO", "Che do Rut tien: Da chan mo lenh Initial Buy moi.");
+       }
+       else if(!session_active)
+       {
+          Log("INFO", "Ngoai phien giao dich: Da chan mo lenh Initial Buy moi.");
        }
        else
        {
@@ -180,6 +215,10 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
        if(inp_withdrawal_mode)
        {
           Log("INFO", "Che do Rut tien: Da chan mo lenh Initial Sell moi.");
+       }
+       else if(!session_active)
+       {
+          Log("INFO", "Ngoai phien giao dich: Da chan mo lenh Initial Sell moi.");
        }
        else
        {

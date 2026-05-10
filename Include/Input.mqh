@@ -67,3 +67,15 @@ input double inp_tester_base_balance         = 8000.0; // Số dư gốc mong mu
 input double inp_tester_withdraw_threshold   = 1000.0; // Lợi nhuận đạt được để kích hoạt rút
 input double inp_tester_withdraw_amount      = 1000.0; // Số tiền rút mỗi lần
 
+//===================================================================
+// = 7. GIAO DỊCH THEO PHIÊN (SESSION TRADING)                      =
+//===================================================================
+enum ENUM_SEASON_TIME
+{
+   SUMMER_TIME = 0, // Giờ Mùa Hè
+   WINTER_TIME = 1  // Giờ Mùa Đông
+};
+
+input group "--- 7. Session Trading Settings ---"
+input bool             inp_enable_session = false;       // Bật/Tắt Giao Dịch Theo Phiên
+input ENUM_SEASON_TIME inp_season_type    = SUMMER_TIME; // Lựa chọn Mùa
