@@ -13,6 +13,7 @@ input group "--- 1. Cài đặt chung ---"
 input ulong  inp_magic_number       = 12345;  // Magic Number
 input double inp_initial_tp_pips    = 20.0;   // Take Profit cho lệnh đầu (0 = tắt)
 input double inp_take_profit_usd    = 0.0;    // TP USD (0 = tắt)
+input double inp_stoploss_drawdown  = 0.0;    // Stoploss theo Drawdown USD (0 = tắt)
 input bool inp_withdrawal_mode = false;   // Rút tiền
 
 //===================================================================

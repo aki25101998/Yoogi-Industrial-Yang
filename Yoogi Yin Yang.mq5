@@ -78,9 +78,33 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+    if(g_trading_stopped_by_dd) return;
+
     ProcessNewDeals();
     g_last_close_reason = CR_UNKNOWN; 
     CheckAndResetAccounting();
+
+    // --- KIỂM TRA CHÁY TÀI KHOẢN ---
+    if(AccountInfoDouble(ACCOUNT_BALANCE) <= 0.0)
+    {
+        bool has_ea_pending = false;
+        for(int i = OrdersTotal() - 1; i >= 0; i--)
+        {
+            ulong ticket = OrderGetTicket(i);
+            if(ticket > 0 && OrderGetInteger(ORDER_MAGIC) == inp_magic_number && OrderGetString(ORDER_SYMBOL) == _Symbol)
+            {
+                has_ea_pending = true;
+                break;
+            }
+        }
+        
+        if(has_ea_pending)
+        {
+            Log("WARNING", StringFormat("Phat hien TAI KHOAN CHAY (Balance: %.2f <= 0). Tien hanh xoa toan bo Pending Orders cua EA!", AccountInfoDouble(ACCOUNT_BALANCE)));
+            DeleteAllPendingOrders();
+        }
+        return; // Dừng OnTick ở đây để không mở lệnh mới hoặc xử lý thêm
+    }
 
     // --- Khai báo biến cục bộ ---
     PositionInfo positions[];
@@ -204,10 +228,25 @@ void OnTick()
         }
     }
 
+    double total_ea_profit = total_buy_profit + total_sell_profit;
+
+    // --- BỘ KIỂM TRA STOPLOSS THEO DRAWDOWN ---
+    if(inp_stoploss_drawdown > 0 && total_ea_profit <= -inp_stoploss_drawdown)
+    {
+        Log("WARNING", StringFormat("Phat hien DD ($%.2f) cham muc Stoploss ($%.2f). Dong toan bo lenh va ngung giao dich ngay lap tuc!", -total_ea_profit, inp_stoploss_drawdown));
+        DeleteAllPendingOrders();
+        CloseAllPositionsByEA(positions);
+        g_trading_stopped_by_dd = true;
+        
+        UpdateDisplay(positions);
+        UpdateProfitDisplay();
+        ChartRedraw();
+        return;
+    }
+
     // --- BỘ KIỂM TRA TP THEO USD ---
     if(inp_take_profit_usd > 0)
     {
-        double total_ea_profit = total_buy_profit + total_sell_profit;
         if(total_ea_profit >= inp_take_profit_usd || g_is_closing_tp_usd)
         {
             if(!g_is_closing_tp_usd)
