@@ -13,7 +13,6 @@
 #include "Include/Input.mqh"
 #include "Include/Globals.mqh"
 #include "Include/CoreLogic.mqh"
-#include "Include/Trimming.mqh"
 #include "Include/SidewayProtection.mqh"
 
 #include "Include/Panel.mqh"
@@ -46,7 +45,7 @@ int OnInit()
    
    InitializeGlobalVariables();
    LoadBudget();
-   CheckAndResetAccounting();
+
    UpdateProfitDisplay();
    
    HistorySelect(0, TimeCurrent());
@@ -83,7 +82,7 @@ void OnTick()
 
     ProcessNewDeals();
     g_last_close_reason = CR_UNKNOWN; 
-    CheckAndResetAccounting();
+
 
     // --- KIỂM TRA CHÁY TÀI KHOẢN ---
     if(AccountInfoDouble(ACCOUNT_BALANCE) <= 0.0)
@@ -293,17 +292,6 @@ void OnTick()
     UpdateDynamicBaseLot(positions);
     
     ManageTesterWithdrawal();
-
-    // --- TIA KHAN CAP: CHAY MOI TICK (phan ung nhanh) ---
-    if(inp_emergency_trim_mode == ETM_PIP)
-    {
-        ManagePipBasedEmergencyTrim(positions);
-    }
-    else if(inp_emergency_trim_mode == ETM_DRAWDOWN)
-    {
-        ManageEmergencyTrimming(positions);
-    }
-
 
     CheckAndOpenInitialTrades(total_buy_pos, total_sell_pos);
     ManageBuyPositions(positions, total_buy_pos, total_buy_profit, total_sell_profit, highest_buy_price, lowest_buy_price);

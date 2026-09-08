@@ -40,47 +40,21 @@ double   g_current_dca_duong_distance;
 
 ulong    g_last_ui_update_time = 0;
 datetime g_last_bar_time = 0;
-enum E_EMERGENCY_MODE
-{
-   EM_NONE,    // Khong o che do khan cap
-   EM_DAY,     // Che do khan cap NGAY dang kich hoat
-   EM_WEEK     // Che do khan cap TUAN dang kich hoat
-};
-E_EMERGENCY_MODE g_current_emergency_mode;
-E_EMERGENCY_MODE g_previous_emergency_mode;
-
-//--- ENUM cho dropdown che do tia khan cap ---
-enum ENUM_EMERGENCY_TRIM_MODE
-{
-   ETM_DISABLED,    // Tat tia khan cap
-   ETM_DRAWDOWN,    // Tia theo Drawdown (USD)
-   ETM_PIP          // Tia theo Pip
-};
-
 enum E_CLOSE_REASON
 {
    CR_UNKNOWN,   // Giao dich dong thu cong, do SL/TP, hoac khong xac dinh
-   CR_TACTICAL,  // Giao dich dong do Tia lenh Thuong hoac Tia Cheo
-   CR_EMERGENCY  // Giao dich dong do Tia lenh Khan cap
+   CR_TACTICAL   // Giao dich dong do Tia lenh Thuong hoac Tia Cheo
 };
 E_CLOSE_REASON g_last_close_reason;
 
 //--- HE THONG TRACKING LY DO DONG LENH PER-TICKET ---
 ulong    g_pending_tactical_ids[];   // Position IDs dong do tia chien thuat
-ulong    g_pending_emergency_ids[];  // Position IDs dong do tia khan cap
 
 void AddTacticalClose(ulong position_id)
 {
    int size = ArraySize(g_pending_tactical_ids);
    ArrayResize(g_pending_tactical_ids, size + 1);
    g_pending_tactical_ids[size] = position_id;
-}
-
-void AddEmergencyClose(ulong position_id)
-{
-   int size = ArraySize(g_pending_emergency_ids);
-   ArrayResize(g_pending_emergency_ids, size + 1);
-   g_pending_emergency_ids[size] = position_id;
 }
 
 E_CLOSE_REASON LookupCloseReason(ulong position_id)
@@ -94,17 +68,6 @@ E_CLOSE_REASON LookupCloseReason(ulong position_id)
             g_pending_tactical_ids[j] = g_pending_tactical_ids[j+1];
          ArrayResize(g_pending_tactical_ids, ArraySize(g_pending_tactical_ids) - 1);
          return CR_TACTICAL;
-      }
-   }
-   // Kiem tra emergency
-   for(int i = 0; i < ArraySize(g_pending_emergency_ids); i++)
-   {
-      if(g_pending_emergency_ids[i] == position_id)
-      {
-         for(int j = i; j < ArraySize(g_pending_emergency_ids) - 1; j++)
-            g_pending_emergency_ids[j] = g_pending_emergency_ids[j+1];
-         ArrayResize(g_pending_emergency_ids, ArraySize(g_pending_emergency_ids) - 1);
-         return CR_EMERGENCY;
       }
    }
    return CR_UNKNOWN;
@@ -123,22 +86,10 @@ double   g_furthest_sell_pending_price = 0;
 ulong    g_last_heal_check_time = 0;
 ulong    g_last_sync_vol_time = 0;
 
-//--- BIEN TOAN CUC (He thong So Sach Ke Toan) ---
-double   g_safe_day = 0.0;
-double   g_budget_day = 0.0;
-double   g_safe_week = 0.0;
-double   g_budget_week = 0.0;
-double   g_trimmed_day = 0.0;
-double   g_trimmed_week = 0.0;
-
 //--- BIEN TOAN CUC (Quy TP USD) ---
 double   g_fund_all = 0.0;        // Quy All (tong hop khi TP USD > 0)
 
 bool     g_is_closing_tp_usd = false;
-
-// Biến theo dõi chu kỳ để reset
-datetime g_last_known_day = 0;
-datetime g_last_known_week_start = 0;
 
 
 
@@ -163,12 +114,8 @@ void InitializeGlobalVariables()
    g_last_ui_update_time = 0;
    g_last_bar_time = 0;
    
-   g_current_emergency_mode = EM_NONE;
-   g_previous_emergency_mode = EM_NONE;
-   
    g_last_close_reason = CR_UNKNOWN;
    ArrayResize(g_pending_tactical_ids, 0);
-   ArrayResize(g_pending_emergency_ids, 0);
 
    g_last_processed_deal_count = 0;
    ArrayResize(g_open_position_tickets, 0);
@@ -179,45 +126,8 @@ void InitializeGlobalVariables()
    g_furthest_sell_pending_price = 0;
    g_last_heal_check_time = 0;
    g_last_sync_vol_time = 0;
-
-   // Khoi tao so sach ke toan
-   g_safe_day = 0.0;
-   g_budget_day = 0.0;
-   g_safe_week = 0.0;
-   g_budget_week = 0.0;
-   g_trimmed_day = 0.0;
-   g_trimmed_week = 0.0;
-   g_last_known_day = 0;
-   g_last_known_week_start = 0;
    
    g_is_closing_tp_usd = false;
-}
-
-
-//+------------------------------------------------------------------+
-//| KIỂM TRA VÀ RESET SỔ SÁCH KẾ TOÁN KHI BẮT ĐẦU CHU KỲ MỚI       |
-//+------------------------------------------------------------------+
-void CheckAndResetAccounting()
-{
-    datetime current_day_start = GetStartOfDay();
-    if(g_last_known_day != current_day_start)
-    {
-       Log("INFO", "Phat hien ngay moi. Reset Ket Sat & Ngan Sach NGAY.");
-       g_safe_day = 0.0;
-       g_budget_day = 0.0;
-       g_trimmed_day = 0.0;
-       g_last_known_day = current_day_start;
-    }
-
-    datetime current_week_start = GetFinancialWeekStart();
-    if(g_last_known_week_start != current_week_start)
-    {
-       Log("INFO", "Phat hien tuan moi. Reset Ket Sat & Ngan Sach TUAN.");
-       g_safe_week = 0.0;
-       g_budget_week = 0.0;
-       g_trimmed_week = 0.0;
-       g_last_known_week_start = current_week_start;
-    }
 }
 
 

@@ -226,46 +226,6 @@ void UpdateAccountingOnDeal(double deal_profit, ENUM_DEAL_TYPE deal_type = DEAL_
       Log("INFO", StringFormat(">>> QUY ALL %+.2f. Tong: %.2f <<<", deal_profit, g_fund_all));
       SaveBudget();
    }
-
-   if(deal_profit > 0)
-   {
-      double profit_for_safe_day = deal_profit * (inp_emergency_profit_retention_day / 100.0);
-      double profit_for_budget_day = deal_profit - profit_for_safe_day;
-      g_safe_day += profit_for_safe_day;
-      g_budget_day += profit_for_budget_day;
-      double profit_for_safe_week = deal_profit * (inp_emergency_profit_retention_week / 100.0);
-      double profit_for_budget_week = deal_profit - profit_for_safe_week;
-      g_safe_week += profit_for_safe_week;
-      g_budget_week += profit_for_budget_week;
-   }
-   else
-   {
-      double loss_amount = -deal_profit;
-      switch(g_last_close_reason)
-      {
-         case CR_EMERGENCY:
-         {
-            g_trimmed_day += loss_amount; g_trimmed_week += loss_amount;
-            g_budget_day -= loss_amount; g_budget_week -= loss_amount;
-            Log("WARNING", StringFormat("Ke toan LO KHAN CAP: -%.2f.", loss_amount));
-            break;
-         }
-         case CR_TACTICAL:
-         default:
-         {
-            double loss_for_safe_day = loss_amount * (inp_emergency_profit_retention_day / 100.0);
-            double loss_for_budget_day = loss_amount - loss_for_safe_day;
-            g_safe_day -= loss_for_safe_day; g_budget_day -= loss_for_budget_day;
-            double loss_for_safe_week = loss_amount * (inp_emergency_profit_retention_week / 100.0);
-            double loss_for_budget_week = loss_amount - loss_for_safe_week;
-            g_safe_week -= loss_for_safe_week; g_budget_week -= loss_for_budget_week;
-            Log("INFO", StringFormat("Ke toan LO: -%.2f.", loss_amount));
-            break;
-         }
-      }
-   }
-   Log("INFO", StringFormat("So sach cap nhat: KSN=%.2f, NSN=%.2f | KST=%.2f, NST=%.2f", g_safe_day, g_budget_day, g_safe_week, g_budget_week));
-   SaveBudget();
 }
 
 //+------------------------------------------------------------------+
@@ -326,19 +286,8 @@ void SaveBudget()
 {
    string suffix = _Symbol + "_" + IntegerToString(inp_magic_number);
    
-   if(!GlobalVariableSet(PREFIX_BUDGET + "SafeDay_" + suffix, g_safe_day))     Log("ERROR", "Khong the luu SafeDay");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "BudgetDay_" + suffix, g_budget_day)) Log("ERROR", "Khong the luu BudgetDay");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "SafeWeek_" + suffix, g_safe_week))   Log("ERROR", "Khong the luu SafeWeek");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "BudgetWeek_" + suffix, g_budget_week)) Log("ERROR", "Khong the luu BudgetWeek");
-   
-   if(!GlobalVariableSet(PREFIX_BUDGET + "TrimmedDay_" + suffix, g_trimmed_day)) Log("ERROR", "Khong the luu TrimmedDay");
-   if(!GlobalVariableSet(PREFIX_BUDGET + "TrimmedWeek_" + suffix, g_trimmed_week)) Log("ERROR", "Khong the luu TrimmedWeek");
-   
    // Luu quy TP USD
    if(!GlobalVariableSet(PREFIX_BUDGET + "FundAll_" + suffix, g_fund_all)) Log("ERROR", "Khong the luu FundAll");
-   
-   GlobalVariableSet(PREFIX_BUDGET + "LastDay_" + suffix, (double)g_last_known_day);
-   GlobalVariableSet(PREFIX_BUDGET + "LastWeek_" + suffix, (double)g_last_known_week_start);
 }
 
 //+------------------------------------------------------------------+
@@ -347,39 +296,17 @@ void SaveBudget()
 void LoadBudget()
 {
    string suffix = _Symbol + "_" + IntegerToString(inp_magic_number);
-   string check_key = PREFIX_BUDGET + "BudgetDay_" + suffix;
+   string check_key = PREFIX_BUDGET + "FundAll_" + suffix;
    
    if(GlobalVariableCheck(check_key))
    {
-      g_safe_day = GlobalVariableGet(PREFIX_BUDGET + "SafeDay_" + suffix);
-      g_budget_day = GlobalVariableGet(PREFIX_BUDGET + "BudgetDay_" + suffix);
-      g_safe_week = GlobalVariableGet(PREFIX_BUDGET + "SafeWeek_" + suffix);
-      g_budget_week = GlobalVariableGet(PREFIX_BUDGET + "BudgetWeek_" + suffix);
-      g_trimmed_day = GlobalVariableGet(PREFIX_BUDGET + "TrimmedDay_" + suffix);
-      g_trimmed_week = GlobalVariableGet(PREFIX_BUDGET + "TrimmedWeek_" + suffix);
-      
       // Load quy TP USD
-      if(GlobalVariableCheck(PREFIX_BUDGET + "FundAll_" + suffix))
-          g_fund_all = GlobalVariableGet(PREFIX_BUDGET + "FundAll_" + suffix);
-      else
-          g_fund_all = 0.0;
-       
-      if(GlobalVariableCheck(PREFIX_BUDGET + "LastDay_" + suffix))
-          g_last_known_day = (datetime)GlobalVariableGet(PREFIX_BUDGET + "LastDay_" + suffix);
-      else
-          g_last_known_day = GetStartOfDay();
-          
-      if(GlobalVariableCheck(PREFIX_BUDGET + "LastWeek_" + suffix))
-          g_last_known_week_start = (datetime)GlobalVariableGet(PREFIX_BUDGET + "LastWeek_" + suffix);
-      else
-          g_last_known_week_start = GetFinancialWeekStart();
-
+      g_fund_all = GlobalVariableGet(PREFIX_BUDGET + "FundAll_" + suffix);
       Log("INFO", "Da khoi phuc Ngan sach tu F3.");
    }
    else
    {
-      g_last_known_day = GetStartOfDay();
-      g_last_known_week_start = GetFinancialWeekStart();
+      g_fund_all = 0.0;
       Log("INFO", "Khong tim thay du lieu Ngan sach cu tren F3. Su dung gia tri mac dinh (0).");
    }
 }

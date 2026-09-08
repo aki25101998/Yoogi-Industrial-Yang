@@ -59,4 +59,3 @@
 
 1. **Quỹ Buy và Quỹ Sell** hoạt động độc lập
 2. **Trailing từng nhóm** giúp chốt lời nhanh hơn, không phải chờ toàn bộ lệnh
-3. **Tỉa lệnh khẩn cấp** là tính năng riêng, không liên quan đến quỹ này

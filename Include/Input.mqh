@@ -48,23 +48,6 @@ input int    inp_sideway_min_positions = 20;   // So position toi thieu moi phia
 input double inp_min_tp_usd            = 5.0;  // TP USD (Min) khi dinh Sideway Lock
 
 //===================================================================
-// = 6. TỈA LỆNH KHẨN CẤP THEO VÙNG GẦN CHÁY TÀI KHOẢN             =
-//===================================================================
-// --- Kieu tia khan cap theo pip ---
-enum ENUM_PIP_TRIM_STYLE
-{
-   PIP_TRIM_SOFT = 0,   // Tia mem (can budget D/W)
-   PIP_TRIM_HARD = 1    // Tia cung (dong ngay khong can budget)
-};
-
-input group "--- 5. Tia Lenh Khan Cap ---"
-input ENUM_EMERGENCY_TRIM_MODE inp_emergency_trim_mode = ETM_DISABLED; // Che do tia khan cap
-input double inp_pip_emergency_threshold      = 100.0;    // Nguong Pip kich hoat (cho ETM_PIP)
-input ENUM_PIP_TRIM_STYLE inp_pip_trim_style  = PIP_TRIM_SOFT; // Kieu tia theo pip
-input double inp_emergency_dd1_amount         = 2000.0;   // DD kich hoat tia theo LAI NGAY
-input double inp_emergency_profit_retention_day = 50.0;   // % Loi nhuan muon giu lai
-input double inp_emergency_dd2_amount         = 3000.0;   // DD kich hoat tia theo LAI TUAN
-input double inp_emergency_profit_retention_week= 70.0;   // % Loi nhuan muon giu lai
 
 //===================================================================
 // = 6. SETTING MÔ PHỎNG ĐÁNH GIÁ (STRATEGY TESTER)                =
