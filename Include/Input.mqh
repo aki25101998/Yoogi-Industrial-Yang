@@ -41,7 +41,14 @@ input int    inp_pending_refill_threshold = 10;      // Số lệnh tối thiể
 input bool   inp_pending_auto_refill      = true;    // Tự động đặt thêm khi hết
 
 //===================================================================
-// = 5. TỈA LỆNH KHẨN CẤP THEO VÙNG GẦN CHÁY TÀI KHOẢN             =
+// = 5. SIDEWAY PROTECTION                                          =
+//===================================================================
+input group "--- 5. Sideway Protection ---"
+input int    inp_sideway_min_positions = 20;   // So position toi thieu moi phia de xet Sideway
+input double inp_min_tp_usd            = 5.0;  // TP USD (Min) khi dinh Sideway Lock
+
+//===================================================================
+// = 6. TỈA LỆNH KHẨN CẤP THEO VÙNG GẦN CHÁY TÀI KHOẢN             =
 //===================================================================
 // --- Kieu tia khan cap theo pip ---
 enum ENUM_PIP_TRIM_STYLE

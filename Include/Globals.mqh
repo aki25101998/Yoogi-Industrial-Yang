@@ -30,6 +30,9 @@ struct PendingInfo
 };
 
 //--- BIẾN TOÀN CỤC (Trạng thái hoạt động) ---
+#define SIDEWAY_RATIO_THRESHOLD 0.70
+bool     g_sideway_lock = false;
+
 bool     g_trading_stopped_by_dd = false;
 double   g_current_base_lot_buy;
 double   g_current_base_lot_sell;
@@ -151,6 +154,7 @@ datetime GetStartOfDay();
 //+------------------------------------------------------------------+
 void InitializeGlobalVariables()
 {
+   g_sideway_lock = false;
    g_trading_stopped_by_dd = false;
    g_current_base_lot_buy = inp_lot_dca_duong;
    g_current_base_lot_sell = inp_lot_dca_duong;

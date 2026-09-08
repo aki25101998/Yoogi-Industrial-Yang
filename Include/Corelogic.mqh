@@ -27,7 +27,7 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, doub
    if(!inp_enable_buy || total_buy_pos == 0) return;
    if(!inp_enable_dca_duong) return;
 
-   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, hp);
+   if(!g_sideway_lock && inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_BUY, hp);
    
    double ca = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double dist_points = (double)PipToPoints(g_current_dca_duong_distance) * _Point;
@@ -36,49 +36,52 @@ void ManageBuyPositions(const PositionInfo &positions[], int total_buy_pos, doub
    // Multi-level catch-up: mở TẤT CẢ mức DCA bị miss trong 1 tick
    double current_hp = hp;
    
-   while(ca >= current_hp + dist_points)
+   if(!g_sideway_lock)
    {
-      double target = current_hp + dist_points;
-      
-      // Xóa TP khi sắp mở lệnh thứ 2 (chỉ 1 lần)
-      if(!tp_removed && total_buy_pos == 1 && inp_initial_tp_pips > 0)
-      {
-          for(int k = 0; k < ArraySize(positions); k++)
+       while(ca >= current_hp + dist_points)
+       {
+          double target = current_hp + dist_points;
+          
+          // Xóa TP khi sắp mở lệnh thứ 2 (chỉ 1 lần)
+          if(!tp_removed && total_buy_pos == 1 && inp_initial_tp_pips > 0)
           {
-              if(positions[k].type == POSITION_TYPE_BUY)
+              for(int k = 0; k < ArraySize(positions); k++)
               {
-                  if(PositionSelectByTicket(positions[k].ticket))
+                  if(positions[k].type == POSITION_TYPE_BUY)
                   {
-                      double t = PositionGetDouble(POSITION_TP);
-                      if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
+                      if(PositionSelectByTicket(positions[k].ticket))
+                      {
+                          double t = PositionGetDouble(POSITION_TP);
+                          if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
+                      }
+                      break;
                   }
-                  break;
               }
+              tp_removed = true;
           }
-          tp_removed = true;
-      }
-      
-      // POSITION GUARD: Chỉ skip nếu đã có POSITION THẬT gần đó
-      if(HasPositionNearPrice(POSITION_TYPE_BUY, target, positions))
-      {
-         current_hp = target;
-         continue;
-      }
-      
-      // Mở Market Order trực tiếp
-      if(trade.Buy(g_current_base_lot_buy, _Symbol, 0, 0, 0, "DCA DUONG"))
-      {
-         total_buy_pos++;
-         // Proactive Cleanup: xóa pending trùng gần mức giá vừa mở
-         if(inp_enable_pending_mode) DeletePendingNearPrice(POSITION_TYPE_BUY, target);
-      }
-      else
-      {
-         Log("ERROR", StringFormat("Loi mo lenh DCA DUONG BUY tai muc %f. Ma loi: %d", target, (int)trade.ResultRetcode()));
-         break; // Dung lai neu lenh bi reject (tranh spam)
-      }
-      
-      current_hp = target;
+          
+          // POSITION GUARD: Chỉ skip nếu đã có POSITION THẬT gần đó
+          if(HasPositionNearPrice(POSITION_TYPE_BUY, target, positions))
+          {
+             current_hp = target;
+             continue;
+          }
+          
+          // Mở Market Order trực tiếp
+          if(trade.Buy(g_current_base_lot_buy, _Symbol, 0, 0, 0, "DCA DUONG"))
+          {
+             total_buy_pos++;
+             // Proactive Cleanup: xóa pending trùng gần mức giá vừa mở
+             if(inp_enable_pending_mode) DeletePendingNearPrice(POSITION_TYPE_BUY, target);
+          }
+          else
+          {
+             Log("ERROR", StringFormat("Loi mo lenh DCA DUONG BUY tai muc %f. Ma loi: %d", target, (int)trade.ResultRetcode()));
+             break; // Dung lai neu lenh bi reject (tranh spam)
+          }
+          
+          current_hp = target;
+       }
    }
 }
 
@@ -90,7 +93,7 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, do
    if(!inp_enable_sell || total_sell_pos == 0) return;
    if(!inp_enable_dca_duong) return;
 
-   if(inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, lp);
+   if(!g_sideway_lock && inp_enable_pending_mode) RefillStopOrdersIfNeeded(POSITION_TYPE_SELL, lp);
    
    double cb = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double dist_points = (double)PipToPoints(g_current_dca_duong_distance) * _Point;
@@ -99,49 +102,52 @@ void ManageSellPositions(const PositionInfo &positions[], int total_sell_pos, do
    // Multi-level catch-up: mở TẤT CẢ mức DCA bị miss trong 1 tick
    double current_lp = lp;
    
-   while(cb <= current_lp - dist_points)
+   if(!g_sideway_lock)
    {
-      double target = current_lp - dist_points;
-      
-      // Xóa TP khi sắp mở lệnh thứ 2 (chỉ 1 lần)
-      if(!tp_removed && total_sell_pos == 1 && inp_initial_tp_pips > 0)
-      {
-          for(int k = 0; k < ArraySize(positions); k++)
+       while(cb <= current_lp - dist_points)
+       {
+          double target = current_lp - dist_points;
+          
+          // Xóa TP khi sắp mở lệnh thứ 2 (chỉ 1 lần)
+          if(!tp_removed && total_sell_pos == 1 && inp_initial_tp_pips > 0)
           {
-              if(positions[k].type == POSITION_TYPE_SELL)
+              for(int k = 0; k < ArraySize(positions); k++)
               {
-                  if(PositionSelectByTicket(positions[k].ticket))
+                  if(positions[k].type == POSITION_TYPE_SELL)
                   {
-                      double t = PositionGetDouble(POSITION_TP);
-                      if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
+                      if(PositionSelectByTicket(positions[k].ticket))
+                      {
+                          double t = PositionGetDouble(POSITION_TP);
+                          if(t > 0) trade.PositionModify(positions[k].ticket, 0, 0);
+                      }
+                      break;
                   }
-                  break;
               }
+              tp_removed = true;
           }
-          tp_removed = true;
-      }
-      
-      // POSITION GUARD: Chỉ skip nếu đã có POSITION THẬT gần đó
-      if(HasPositionNearPrice(POSITION_TYPE_SELL, target, positions))
-      {
-         current_lp = target;
-         continue;
-      }
-      
-      // Mở Market Order trực tiếp
-      if(trade.Sell(g_current_base_lot_sell, _Symbol, 0, 0, 0, "DCA DUONG"))
-      {
-         total_sell_pos++;
-         // Proactive Cleanup: xóa pending trùng gần mức giá vừa mở
-         if(inp_enable_pending_mode) DeletePendingNearPrice(POSITION_TYPE_SELL, target);
-      }
-      else
-      {
-         Log("ERROR", StringFormat("Loi mo lenh DCA DUONG SELL tai muc %f. Ma loi: %d", target, (int)trade.ResultRetcode()));
-         break; // Dung lai neu lenh bi reject (tranh spam)
-      }
-      
-      current_lp = target;
+          
+          // POSITION GUARD: Chỉ skip nếu đã có POSITION THẬT gần đó
+          if(HasPositionNearPrice(POSITION_TYPE_SELL, target, positions))
+          {
+             current_lp = target;
+             continue;
+          }
+          
+          // Mở Market Order trực tiếp
+          if(trade.Sell(g_current_base_lot_sell, _Symbol, 0, 0, 0, "DCA DUONG"))
+          {
+             total_sell_pos++;
+             // Proactive Cleanup: xóa pending trùng gần mức giá vừa mở
+             if(inp_enable_pending_mode) DeletePendingNearPrice(POSITION_TYPE_SELL, target);
+          }
+          else
+          {
+             Log("ERROR", StringFormat("Loi mo lenh DCA DUONG SELL tai muc %f. Ma loi: %d", target, (int)trade.ResultRetcode()));
+             break; // Dung lai neu lenh bi reject (tranh spam)
+          }
+          
+          current_lp = target;
+       }
    }
 }
 
@@ -156,7 +162,7 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
    double initial_sell_bid = 0;
 
    // --- Xử lý mở lệnh Initial BUY ---
-   if(inp_enable_buy && total_buy_pos == 0)
+   if(!g_sideway_lock && inp_enable_buy && total_buy_pos == 0)
    {
        if(inp_withdrawal_mode)
        {
@@ -175,7 +181,7 @@ void CheckAndOpenInitialTrades(int total_buy_pos, int total_sell_pos)
    }
 
    // --- Xử lý mở lệnh Initial SELL ---
-   if(inp_enable_sell && total_sell_pos == 0)
+   if(!g_sideway_lock && inp_enable_sell && total_sell_pos == 0)
    {
        if(inp_withdrawal_mode)
        {

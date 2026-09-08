@@ -14,6 +14,7 @@
 #include "Include/Globals.mqh"
 #include "Include/CoreLogic.mqh"
 #include "Include/Trimming.mqh"
+#include "Include/SidewayProtection.mqh"
 
 #include "Include/Panel.mqh"
 #include "Include/InfoDisplay.mqh"
@@ -217,6 +218,9 @@ void OnTick()
         }
     }
 
+    ResetSidewayLockIfNeeded(total_buy_pos, total_sell_pos);
+    CheckSidewayLock(total_buy_pos, total_sell_pos);
+
     // --- RESET QUỸ ALL KHI HẾT LỆNH ---
     if(total_buy_pos == 0 && total_sell_pos == 0)
     {
@@ -245,13 +249,14 @@ void OnTick()
     }
 
     // --- BỘ KIỂM TRA TP THEO USD ---
-    if(inp_take_profit_usd > 0)
+    double current_target_tp_usd = g_sideway_lock ? inp_min_tp_usd : inp_take_profit_usd;
+    if(current_target_tp_usd > 0)
     {
-        if(total_ea_profit >= inp_take_profit_usd || g_is_closing_tp_usd)
+        if(total_ea_profit >= current_target_tp_usd || g_is_closing_tp_usd)
         {
             if(!g_is_closing_tp_usd)
             {
-               Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Dang kich hoat xoa toan bo lenh...", inp_take_profit_usd));
+               Log("INFO", StringFormat("TP USD: Da dat muc tieu $%.2f. Dang kich hoat xoa toan bo lenh...", current_target_tp_usd));
                g_is_closing_tp_usd = true;
             }
             
@@ -279,9 +284,12 @@ void OnTick()
     }
 
     // --- CÁC LOGIC CHẠY MỖI TICK ---
-    CleanRedundantPendingOrders();
-    SyncPendingVolume();
-    HealGridGaps(positions, g_pending_orders);
+    if(!g_sideway_lock)
+    {
+        CleanRedundantPendingOrders();
+        SyncPendingVolume();
+        HealGridGaps(positions, g_pending_orders);
+    }
     UpdateDynamicBaseLot(positions);
     
     ManageTesterWithdrawal();
